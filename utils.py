@@ -34,6 +34,18 @@ def init_db():
                 message TEXT
             )
         ''')
+        # Tabla para guardar indicadores
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS indicators_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT,
+                symbol TEXT,
+                timeframe TEXT,
+                rsi REAL,
+                macd REAL,
+                atr REAL
+            )
+        ''')
         conn.commit()
     except Exception as e:
         logger.error(f"Error inicializando BD: {e}")
@@ -59,7 +71,34 @@ def log_to_db(level, message, log_to_file=True):
         if conn:
             conn.close()
 
-def fetch_data(symbol='BTC/USD', timeframe='1d', limit=100, retries=3):
+def save_indicators(symbol, timeframe, row):
+    """Guarda valores de indicadores clave en la DB local."""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Limpieza simple para BD
+        rsi = row.get('RSI_14', 0)
+        macd = row.get('MACD', 0)
+        atr = row.get('ATR_14', 0)
+        
+        rsi = float(rsi) if not pd.isna(rsi) else 0.0
+        macd = float(macd) if not pd.isna(macd) else 0.0
+        atr = float(atr) if not pd.isna(atr) else 0.0
+        
+        cursor.execute('''
+            INSERT INTO indicators_log (timestamp, symbol, timeframe, rsi, macd, atr)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), symbol, timeframe, rsi, macd, atr))
+        conn.commit()
+    except Exception as e:
+        logger.error(f"Error guardando indicadores: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def fetch_data(symbol='BTC/USD', timeframe='1d', limit=250, retries=3):
     """
     Obtiene datos OHLCV de Kraken manejando errores y reintentos.
     """
