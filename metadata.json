@@ -1,0 +1,6 @@
+{
+  "name": "Remix: TradeDash",
+  "description": "Fase 1: Aplicación React con Vite para visualización interactiva de BTC/USD en tiempo real usando datos de Kraken.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
