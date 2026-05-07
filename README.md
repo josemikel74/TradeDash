@@ -1,20 +1,38 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# TradeDash - BTC/USD
 
-# Run and deploy your AI Studio app
+Esta es una versión en **Python (Streamlit)** del proyecto TradeDash original en React. 
+Te permite visualizar el histórico reciente (100 días) y precio actual en tiempo real de Bitcoin usando la API oficial de Kraken.
 
-This contains everything you need to run your app locally.
+## Instrucciones para GitHub y Ejecución Local
 
-View your app in AI Studio: https://ai.studio/apps/d09bfe20-b713-4209-8903-8c7eef0bcfb8
+Para ejecutar esta aplicación como un dashboard de Streamlit en tu máquina local o hacer deploy (por ejemplo, en Streamlit Community Cloud), sigue estos pasos:
 
-## Run Locally
+### 1. Clonar el repositorio
+Si ya lo exportaste a Github, haz clone en tu máquina:
+```bash
+git clone <URL_DE_TU_REPOSITORIO>
+cd <DIRECTORIO_DEL_REPOSITORIO>
+```
 
-**Prerequisites:**  Node.js
+### 2. Configurar el entorno virtual (Recomendado)
+```bash
+python -m venv venv
+# Activar en Windows
+venv\Scripts\activate
+# Activar en macOS/Linux
+source venv/bin/activate
+```
 
+### 3. Instalar las dependencias
+Instala los paquetes de `requirements.txt`:
+```bash
+pip install -r requirements.txt
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### 4. Ejecutar la aplicación
+Ejecuta el script de Streamlit para arrancar tu servidor local:
+```bash
+streamlit run app.py
+```
+
+Se abrirá automáticamente una pestaña en tu navegador con la dirección `http://localhost:8501`.
