@@ -144,6 +144,36 @@ class Analyst(AgentPlaceholder):
         }
         return analysis
 
+    def run_learning_cycle(self, df, prob_res):
+        """Calcula métricas de aprendizaje continuo simuladas usando los resultados resientes del motor."""
+        if df is None or len(df) < 30 or prob_res is None:
+            return None
+            
+        returns = df['close'].pct_change().dropna()
+        recent_returns = returns[-30:]
+        actual_up = sum(recent_returns > 0) / len(recent_returns)
+        
+        predicted_prob = prob_res['prob_up'] / 100.0
+        
+        # Brier score (0 = perfecto, 1 = pésimo)
+        brier_score = (predicted_prob - actual_up)**2
+        
+        # Error de calibración
+        calibration_error = abs(predicted_prob - actual_up)
+        
+        # Lookback auto-ajustado: en base a la volatilidad
+        optimal_lookback = 30 if prob_res['garch_vol'] > 60 else 60
+        
+        # Umbral GARCH sugerido (Vol thresholds)
+        optimal_vol_thresh = np.percentile(returns.rolling(14).std() * np.sqrt(365) * 100, 75) if not returns.empty else 50.0
+
+        return {
+            "brier_score": brier_score,
+            "calibration_error": calibration_error,
+            "optimal_lookback": optimal_lookback,
+            "optimal_vol_threshold": optimal_vol_thresh
+        }
+
 class DevilAdvocate(AgentPlaceholder):
     def __init__(self):
         super().__init__("Abogado del Diablo")

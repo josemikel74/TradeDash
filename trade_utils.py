@@ -79,6 +79,17 @@ def init_db():
                 FOREIGN KEY(rec_id) REFERENCES recommendations(id)
             )
         ''')
+        # Tabla para metricas de aprendizaje continuo (Laboratorio Vivo)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS learning_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT,
+                brier_score REAL,
+                calibration_error REAL,
+                optimal_lookback INTEGER,
+                optimal_vol_threshold REAL
+            )
+        ''')
         conn.commit()
     except Exception as e:
         logger.error(f"Error inicializando BD: {e}")
@@ -182,6 +193,31 @@ def close_operation(op_id, close_price, reason):
         ''', (reason, close_price, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), pnl, op_id))
     conn.commit()
     conn.close()
+
+def update_stop_loss(op_id, new_sl):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('UPDATE operations SET current_stop_loss = ? WHERE id = ?', (new_sl, op_id))
+    conn.commit()
+    conn.close()
+
+def save_learning_metrics(brier, calibration, lookback, vol_thresh):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO learning_metrics (timestamp, brier_score, calibration_error, optimal_lookback, optimal_vol_threshold)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), float(brier), float(calibration), int(lookback), float(vol_thresh)))
+    conn.commit()
+    conn.close()
+
+def get_latest_learning_metrics():
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query("SELECT * FROM learning_metrics ORDER BY id DESC LIMIT 1", conn)
+    conn.close()
+    if not df.empty:
+        return df.iloc[0].to_dict()
+    return None
 
 def fetch_data(symbol='BTC/USD', timeframe='1d', limit=250, retries=3):
     """

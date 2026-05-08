@@ -3,7 +3,8 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from trade_utils import fetch_data, init_db, log_to_db, save_indicators, save_recommendation, update_recommendation_status, open_operation, get_active_operation, close_operation
+import io
+from trade_utils import fetch_data, init_db, log_to_db, save_indicators, save_recommendation, update_recommendation_status, open_operation, get_active_operation, close_operation, save_learning_metrics, get_latest_learning_metrics, update_stop_loss
 from trade_agents import Analyst, RiskManager, Executor, DevilAdvocate, TradingAgent
 from datetime import datetime
 import time
@@ -52,7 +53,23 @@ def compute_probabilities(df, precision_level, _refresh_counter):
     if res:
         res['calc_time'] = time.time() - t0
         res['timestamp'] = datetime.now()
+        
+        # Guardar metricas de aprendizaje
+        try:
+            metrics = analyst.run_learning_cycle(df, res)
+            if metrics:
+                save_learning_metrics(metrics['brier_score'], metrics['calibration_error'], metrics['optimal_lookback'], metrics['optimal_vol_threshold'])
+        except Exception as e:
+            pass # Falla silenciosa si DB aun no lista
+            
     return res
+
+def get_excel_download(df_dict):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        for sheet_name, df in df_dict.items():
+            df.to_excel(writer, index=False, sheet_name=sheet_name)
+    return output.getvalue()
 
 def render_chart(df, title, show_indicators=True):
     if df is None or df.empty:
@@ -319,43 +336,145 @@ def main():
                 log_to_db("INFO", "Refresh TOTAL mandatorio ejecutado.")
                 st.rerun()
 
-        st.subheader("Terminal Root Logs (Últimos Eventos)")
+        st.subheader("Estado de Auto-Aprendizaje (Laboratorio Vivo)")
+        lm = get_latest_learning_metrics()
+        if lm:
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Brier Score", f"{lm['brier_score']:.4f}", help="0 = Perfecto, 1 = Error Total")
+            m2.metric("Error de Calibración", f"{lm['calibration_error']:.4f}")
+            m3.metric("Lookback Óptimo", f"{lm['optimal_lookback']}d")
+            m4.metric("Umbral GARCH", f"{lm['optimal_vol_threshold']:.1f}%")
+            if lm['brier_score'] > 0.4:
+                st.warning("⚠️ Precisión predictiva degradada recientemente. Reconsidera las operaciones algorítmicas.")
+        
+        st.subheader("Terminal Root Logs")
+        
+        log_col, clear_col = st.columns([4, 1])
+        with clear_col:
+            if st.button("Limpiar Logs", use_container_width=True):
+                conn = sqlite3.connect('data/trading.db')
+                conn.execute("DELETE FROM system_logs")
+                conn.commit()
+                conn.close()
+                st.rerun()
+                
         try:
             conn = sqlite3.connect('data/trading.db')
-            logs = pd.read_sql_query("SELECT timestamp, level, message FROM system_logs ORDER BY id DESC LIMIT 30", conn)
+            # Fetch all for filtering
+            logs_df = pd.read_sql_query("SELECT timestamp, level, message FROM system_logs ORDER BY id DESC LIMIT 100", conn)
             conn.close()
-            st.dataframe(logs, use_container_width=True, hide_index=True)
+            
+            filter_level = st.selectbox("Filtrar por nivel:", ["TODOS", "INFO", "WARNING", "ERROR"])
+            if filter_level != "TODOS":
+                logs_df = logs_df[logs_df['level'] == filter_level]
+                
+            st.dataframe(
+                logs_df, 
+                use_container_width=True, 
+                hide_index=True,
+                column_config={
+                    "level": st.column_config.TextColumn(
+                        "Nivel",
+                        help="Nivel de severidad"
+                    )
+                }
+            )
         except Exception as e:
             st.error("No se pudo cargar la base SQLite interna.")
 
     with tabs[4]:
         st.header("Historial Interdepartamental y Auditoría de Riesgo")
         
-        st.subheader("Operaciones Realizadas")
         try:
             conn = sqlite3.connect('data/trading.db')
-            ops = pd.read_sql_query("SELECT id, symbol, status, entry_price, close_price, pnl, timestamp, close_time FROM operations ORDER BY id DESC", conn)
+            ops = pd.read_sql_query("SELECT id, symbol, status, entry_price, close_price, pnl, timestamp, close_time FROM operations WHERE status != 'OPEN' ORDER BY id ASC", conn)
+            recs = pd.read_sql_query("SELECT id, timestamp, status, action, confidence, reason FROM recommendations ORDER BY id DESC LIMIT 50", conn)
+            all_ops = pd.read_sql_query("SELECT * FROM operations ORDER BY id DESC", conn)
             conn.close()
+            
+            # Botones de exportación
+            colA, colB = st.columns(2)
+            with colA:
+                excel_data = get_excel_download({"Operaciones": all_ops, "Recomendaciones": recs})
+                st.download_button(
+                    label="📊 Exportar Historial a Excel (.xlsx)",
+                    data=excel_data,
+                    file_name="historial_trading.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+            # Cálculo de Métricas Clave
+            # Solo consideramos ops cerradas para métricas
             if not ops.empty:
-                st.dataframe(ops, use_container_width=True, hide_index=True)
+                st.subheader("Métricas de Rendimiento (Cerradas)")
+                win_trades = ops[ops['pnl'] > 0]
+                loss_trades = ops[ops['pnl'] <= 0]
+                
+                win_rate = len(win_trades) / len(ops) * 100 if len(ops) > 0 else 0
+                gross_profit = win_trades['pnl'].sum() if not win_trades.empty else 0
+                gross_loss = abs(loss_trades['pnl'].sum()) if not loss_trades.empty else 0
+                profit_factor = gross_profit / gross_loss if gross_loss > 0 else (999.0 if gross_profit > 0 else 0)
+                
+                avg_win = win_trades['pnl'].mean() if not win_trades.empty else 0
+                avg_loss = abs(loss_trades['pnl'].mean()) if not loss_trades.empty else 0
+                expectancy = (win_rate/100 * avg_win) - ((1 - win_rate/100) * avg_loss)
+                
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Win Rate", f"{win_rate:.1f}%", help="Porcentaje de operaciones rentables")
+                c2.metric("Profit Factor", f"{profit_factor:.2f}", help="Ganancia bruta / Pérdida bruta")
+                c3.metric("Expectancy", f"${expectancy:.2f}", help="Retorno promedio esperado por operación")
+                c4.metric("PnL Total", f"${ops['pnl'].sum():,.2f}")
+                
+                # Equity Curve
+                ops['cum_pnl'] = ops['pnl'].cumsum()
+                fig_eq = go.Figure()
+                fig_eq.add_trace(go.Scatter(x=ops['close_time'], y=ops['cum_pnl'], mode='lines+markers', line=dict(color='#22c55e' if ops['pnl'].sum()>=0 else '#ef4444', width=2), name='Cumulative PnL'))
+                fig_eq.update_layout(title="Equity Curve", template="plotly_dark", height=350, margin=dict(l=10, r=10, t=30, b=10))
+                st.plotly_chart(fig_eq, use_container_width=True)
+                
+            st.subheader("Todas las Operaciones")
+            if not all_ops.empty:
+                st.dataframe(all_ops, use_container_width=True, hide_index=True)
             else:
                 st.info("No hay historial de operaciones registradas aún.")
-        except Exception as e:
-            pass
-            
-        st.subheader("Registro de Decisiones (Aprendizaje)")
-        try:
-            conn = sqlite3.connect('data/trading.db')
-            recs = pd.read_sql_query("SELECT id, timestamp, status, action, confidence, reason FROM recommendations ORDER BY id DESC LIMIT 20", conn)
-            conn.close()
+                
+            st.divider()    
+            st.subheader("Registro de Decisiones Estocásticas (Aprendizaje)")
             if not recs.empty:
                 st.dataframe(recs, use_container_width=True, hide_index=True)
-        except Exception:
-            pass
+                
+        except Exception as e:
+            st.error(f"Error procesando historial: {e}")
 
     with tabs[5]:
-        st.header("Panel de Configuración")
+        st.header("Panel de Configuración de Sistema")
         st.info("Utilice el entorno de la barra lateral (Sidebar) para conmutar la precisión del Motor Monte Carlo y el polling.")
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("Gestión de Riesgo Avanzada")
+            st.slider("Riesgo Máximo por Operación (%)", 0.5, 5.0, 2.0, 0.5)
+            st.slider("Umbral Mínimo de Confianza GARCH (%)", 50, 95, 70, 5)
+            st.checkbox("Activar auto-ajuste de hiperparámetros (Laboratorio Vivo)", value=True)
+            
+        with c2:
+            st.subheader("Mantenimiento de Datos")
+            
+            with open('data/trading.db', 'rb') as f:
+                st.download_button(
+                    label="💾 Descargar Backup Completo de Base de Datos (SQLite)",
+                    data=f,
+                    file_name="trading_backup.db",
+                    mime="application/x-sqlite3",
+                    use_container_width=True
+                )
+                
+            st.markdown("⚠️ *Advertencia: La restauración debe ser ejecutada vía administrador.*")
+            
+            if st.button("Limpiar Caché del Motor de Probabilidades", use_container_width=True):
+                compute_probabilities.clear()
+                fetch_and_process_data.clear()
+                st.success("Caché limpiada. Se recalcularán todos los vectores en el próximo ciclo.")
 
     with tabs[6]:
         st.header("Despacho Operacional")
@@ -373,7 +492,14 @@ def main():
             col_a, col_b = st.columns(2)
             with col_a:
                 st.warning(f"**Ubicación de Stop Loss Crítico:** ${active_op['current_stop_loss']:,.2f}")
-                st.markdown(f"*Distancia hasta el SL: -{(current_price - active_op['current_stop_loss']) / current_price * 100:.2f}%*")
+                dist_sl_pct = (current_price - active_op['current_stop_loss']) / current_price * 100
+                st.markdown(f"*Distancia hasta el SL: **{dist_sl_pct:.2f}%***")
+                
+                new_sl = st.number_input("Actualizar Stop Loss (Trailing SL)", value=active_op['current_stop_loss'], step=100.0)
+                if st.button("Actualizar SL en BBDD"):
+                    update_stop_loss(active_op['id'], new_sl)
+                    st.success("Stop Loss actualizado.")
+                    st.rerun()
                 
                 # Manejo simple de SL y TP
                 if current_price <= active_op['current_stop_loss']:
@@ -386,11 +512,14 @@ def main():
                     st.rerun()
 
             with col_b:
+                st.info(f"**Probabilidad Estimada de Éxito Actualizada:** {prob_res['prob_up']:.1f}%")
+                pnl_actual = (current_price - active_op['entry_price']) / active_op['entry_price'] * 100
+                st.metric("PnL Flotante Aprox.", f"{pnl_actual:.2f}%")
                 if st.button("Cerrar Operación Manualmente AHORA", type="primary"):
                     close_operation(active_op['id'], current_price, 'MANUAL_CLOSE')
                     log_to_db("INFO", "Operación cerrada manualmente por el usuario desde la terminal.")
                     st.session_state.refresh_counter += 1
-                    st.success("Cerrada con éxito.")
+                    st.success("Cerrada con éxito, resultados traspasados a métricas de Historial.")
                     st.rerun()
         else:
             st.info("🔴 No existe ninguna posición viva en curso. Dirigirse al Módulo de Agentes para observar señales activas.")
