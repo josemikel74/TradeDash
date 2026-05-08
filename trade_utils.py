@@ -238,29 +238,6 @@ def fetch_data(symbol='BTC/USD', timeframe='1d', limit=250, retries=3):
     log_to_db('ERROR', f"Fallo definitivo al obtener datos de {symbol} ({timeframe}) tras {retries} intentos.")
     return None
 
-def backup_database():
-    import shutil
-    try:
-        if os.path.exists(DB_PATH):
-            backup_path = f"data/trading_backup_{datetime.now().strftime('%Y%m%d%H%M%S')}.db"
-            shutil.copy2(DB_PATH, backup_path)
-            log_to_db('INFO', f"Backup completado: {backup_path}")
-            return backup_path
-    except Exception as e:
-        logger.error(f"Error en backup DB: {e}")
-    return None
-
-def reset_database():
-    try:
-        if os.path.exists(DB_PATH):
-            os.remove(DB_PATH)
-        init_db()
-        log_to_db('WARNING', "Base de datos reseteada a estado original por el usuario.")
-        return True
-    except Exception as e:
-        logger.error(f"Error reseteando DB: {e}")
-        return False
-
 def calc_volatility(df):
     """
     Calcula volatilidad simple (desviación estándar de los retornos).

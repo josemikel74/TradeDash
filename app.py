@@ -4,7 +4,13 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import io
-from trade_utils import fetch_data, init_db, log_to_db, save_indicators, save_recommendation, update_recommendation_status, open_operation, get_active_operation, close_operation, save_learning_metrics, get_latest_learning_metrics, update_stop_loss, backup_database, reset_database
+from trade_utils import (
+    fetch_data, init_db, log_to_db, save_indicators, 
+    save_recommendation, update_recommendation_status, 
+    open_operation, get_active_operation, close_operation, 
+    save_learning_metrics, get_latest_learning_metrics, 
+    update_stop_loss
+)
 from trade_agents import Analyst, RiskManager, Executor, DevilAdvocate, TradingAgent
 from datetime import datetime
 import time
@@ -75,6 +81,32 @@ def get_excel_download(df_dict):
         for sheet_name, df in df_dict.items():
             df.to_excel(writer, index=False, sheet_name=sheet_name)
     return output.getvalue()
+
+def backup_database():
+    import shutil
+    import os
+    try:
+        db_path = 'data/trading.db'
+        if os.path.exists(db_path):
+            backup_path = f"data/trading_backup_{datetime.now().strftime('%Y%m%d%H%M%S')}.db"
+            shutil.copy2(db_path, backup_path)
+            log_to_db('INFO', f"Backup completado: {backup_path}", log_to_file=False)
+            return backup_path
+    except Exception as e:
+        pass
+    return None
+
+def reset_database():
+    import os
+    try:
+        db_path = 'data/trading.db'
+        if os.path.exists(db_path):
+            os.remove(db_path)
+        init_db()
+        log_to_db('WARNING', "Base de datos reseteada a estado original por el usuario.")
+        return True
+    except Exception as e:
+        return False
 
 def render_chart(df, title, show_indicators=True):
     if df is None or df.empty:
