@@ -3,11 +3,12 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from utils import fetch_data, init_db, log_to_db, save_indicators
-from agents import Analyst, RiskManager, Executor
+from utils import fetch_data, init_db, log_to_db, save_indicators, save_recommendation, update_recommendation_status, open_operation, get_active_operation, close_operation
+from agents import Analyst, RiskManager, Executor, DevilAdvocate, TradingAgent
 from datetime import datetime
 import time
 import warnings
+import sqlite3
 
 # Omitir warnings numéricos de optimización en ST Cloud
 warnings.filterwarnings('ignore')
@@ -136,12 +137,12 @@ def main():
         </style>
     """, unsafe_allow_html=True)
 
-    st.title("🏦 Terminal Institucional | Fase 2")
+    st.title("🏦 Terminal Institucional | Fase 3")
     
     if 'refresh_counter' not in st.session_state:
         st.session_state.refresh_counter = 0
 
-    log_to_db("INFO", "Aplicación cargada (Fase 2 UI).", log_to_file=False)
+    log_to_db("INFO", "Aplicación cargada.", log_to_file=False)
 
     tabs = st.tabs([
         "Dashboard Principal", 
@@ -232,45 +233,96 @@ def main():
 
     with tabs[2]:
         st.header("Módulo Complejo de Agentes")
-        st.markdown("Los Agentes matemáticos están ejecutando cálculos rigurosos.")
         
-        ag_riesgo = RiskManager()
-        ag_analista = Analyst()
-        ag_exec = Executor()
+        analyst = Analyst()
+        devil = DevilAdvocate()
+        trader = TradingAgent()
         
-        st.success(ag_exec.status())
-        st.success(ag_riesgo.status())
-        
-        st.info(ag_analista.status())
-        if prob_res:
-            st.markdown("#### 📓 Reporte Activo del Analista Cuantitativo:")
-            st.markdown(f"- **Calibración de Volatilidad Dinámica**: {prob_res['info_garch']}")
-            st.markdown(f"- **Actualización del Drift Bayesiana**: {prob_res['drift_bayes']:.2f}% Anualizado estimado.")
-            st.markdown(f"- **Teoría Extrema de Valor (EVT)**: Exposición proyectada ante caídas estructurales estimadas en: ${prob_res['evt_var_real']:,.0f} ({prob_res['info_evt']})")
-            st.markdown(f"- **Validación Corto Plazo**: Concordancia direccional de {prob_res['backtest']:.1f}% lograda sobre tendencia de control histórica.")
+        if not connected or not prob_res:
+            st.warning("⚠️ Esperando datos del mercado y motor de probabilidades para inicializar el análisis heurístico.")
+        else:
+            analysis = analyst.generate_full_analysis(data_1d, data_4h, prob_res)
+            critique = devil.critique(analysis, prob_res)
+            recommendation = trader.generate_recommendation(analysis, critique, prob_res)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader(f"🧠 {analyst.name}")
+                st.info(f"Tendencia: **{analysis['trend']}** | Momentum: **{analysis['momentum']}**")
+                st.markdown(f"- Confianza Base: {analysis['confidence_score']}%")
+                st.markdown(f"- Soporte Clave: ${analysis['support_level']:,.2f}")
+                st.markdown(f"- Resistencia Clave: ${analysis['resistance_level']:,.2f}")
+                st.markdown(f"- Señal MACD: {analysis['macd_indicator']}")
+                st.markdown(f"- RSI(1d): {analysis['rsi_1d']:.1f}")
+
+            with col2:
+                st.subheader(f"👿 {devil.name}")
+                st.error("Riesgos y Contra-argumentos Activos:")
+                for c in critique['counter_arguments']:
+                    st.markdown(f"- ⚠️ {c}")
+                for r in critique['hidden_risks']:
+                    st.markdown(f"- ❗ **CRÍTICO:** {r}")
+
+            st.markdown("---")
+            st.subheader(f"🎯 {trader.name}")
+            
+            active_op = get_active_operation()
+            
+            if active_op:
+                st.info(f"Hay una operación en curso actualmente. Finaliza la operación antes de aplicar nuevas recomendaciones. Visite la pestaña de 'Operación en Curso'.")
+            elif recommendation['action'] == 'LONG':
+                st.success(f"**Recomendación:** {recommendation['action']} | **Confianza Final:** {recommendation['confidence']}%")
+                st.markdown(f"**Razón:** {recommendation['reason']}")
+                
+                # Resumen de orden
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Precio de Entrada", f"${recommendation['entry_price']:,.2f}")
+                c2.metric("Stop Loss Recomendado", f"${recommendation['stop_loss']:,.2f}")
+                c3.metric("Take Profit", f"${recommendation['take_profit']:,.2f}")
+                c4.metric("Tamaño (Riesgo)", f"{recommendation['position_size_pct']:.1f}%")
+                
+                colA, colB = st.columns(2)
+                with colA:
+                    if st.button("✅ Aprobar e Iniciar Operación LONG Simulada", type="primary", use_container_width=True):
+                        # Guardar rec y operación
+                        rec_id = save_recommendation("BTC/USD", recommendation['entry_price'], recommendation['stop_loss'], recommendation['take_profit'], recommendation['position_size_pct'], recommendation['confidence'], recommendation['reason'])
+                        update_recommendation_status(rec_id, 'ACCEPTED')
+                        open_operation(rec_id, "BTC/USD", recommendation['entry_price'], recommendation['stop_loss'], recommendation['take_profit'], recommendation['position_size_pct'])
+                        log_to_db("INFO", f"Operación LONG Aprobada y abierta en DB.")
+                        st.session_state.refresh_counter += 1
+                        st.rerun()
+                with colB:
+                    if st.button("❌ Rechazar Sugerencia", type="secondary", use_container_width=True):
+                        rec_id = save_recommendation("BTC/USD", recommendation['entry_price'], recommendation['stop_loss'], recommendation['take_profit'], recommendation['position_size_pct'], recommendation['confidence'], recommendation['reason'])
+                        update_recommendation_status(rec_id, 'REJECTED')
+                        log_to_db("INFO", "Recomendación rechazada por el usuario.")
+                        st.warning("Recomendación denegada. Guardada en el historial de entrenamiento.")
+            else:
+                st.warning(f"**Recomendación:** {recommendation['action']}")
+                st.markdown(f"**Razón:** {recommendation['reason']}")
 
     with tabs[3]:
         st.header("Supervisor Técnico Universal")
         
         status_col, btn_col = st.columns([3, 1])
         with status_col:
-            st.markdown(f"**Conector API Master (ccxt):** {'🟢 Operativo' if connected else '🔴 Loop de conexión'}")
-            st.markdown(f"**Motor Matemático Asíncrono:** {'🟢 Calculado y Cacheado' if prob_res else '🔴 Pendiente / Generando'}")
-            st.markdown(f"**Kernels Acoplados:** 🟢 Numba LLVM, Arch Stats, SciPy Distribs cargados.")
+            st.markdown(f"**Conector API Master (ccxt):** {'🟢 Operativo' if connected else '🔴 Error Crítico de Conexión'}")
+            st.markdown(f"**Motor Matemático Asíncrono:** {'🟢 En Caché' if prob_res else '🔴 Fallido / No Listo'}")
+            st.markdown(f"**Enjambre de Agentes:** {'🟢 Activos y Sincronizados' if connected else '🔴 En Espera'}")
             
         with btn_col:
-            if st.button("🚨 HARD RESET SISTEMA", type="primary", use_container_width=True):
+            if st.button("🚨 REFRESH TOTAL SISTEMA", type="primary", use_container_width=True):
                 fetch_and_process_data.clear()
                 compute_probabilities.clear()
                 st.session_state.refresh_counter += 1
-                log_to_db("INFO", "Reset global mandatorio ejecutado.")
+                log_to_db("INFO", "Refresh TOTAL mandatorio ejecutado.")
                 st.rerun()
 
-        st.subheader("Terminal Root Logs")
+        st.subheader("Terminal Root Logs (Últimos Eventos)")
         try:
-            import sqlite3
             conn = sqlite3.connect('data/trading.db')
-            logs = pd.read_sql_query("SELECT timestamp, level, message FROM system_logs ORDER BY id DESC LIMIT 15", conn)
+            logs = pd.read_sql_query("SELECT timestamp, level, message FROM system_logs ORDER BY id DESC LIMIT 30", conn)
             conn.close()
             st.dataframe(logs, use_container_width=True, hide_index=True)
         except Exception as e:
@@ -278,17 +330,70 @@ def main():
 
     with tabs[4]:
         st.header("Historial Interdepartamental y Auditoría de Riesgo")
-        st.warning("Visualización estricta de las métricas de precisión generadas del comportamiento del Agente en simulador.")
-        if prob_res:
-            st.metric("Precisión Auditada en T-30", f"{prob_res['backtest']:.1f}%")
+        
+        st.subheader("Operaciones Realizadas")
+        try:
+            conn = sqlite3.connect('data/trading.db')
+            ops = pd.read_sql_query("SELECT id, symbol, status, entry_price, close_price, pnl, timestamp, close_time FROM operations ORDER BY id DESC", conn)
+            conn.close()
+            if not ops.empty:
+                st.dataframe(ops, use_container_width=True, hide_index=True)
+            else:
+                st.info("No hay historial de operaciones registradas aún.")
+        except Exception as e:
+            pass
+            
+        st.subheader("Registro de Decisiones (Aprendizaje)")
+        try:
+            conn = sqlite3.connect('data/trading.db')
+            recs = pd.read_sql_query("SELECT id, timestamp, status, action, confidence, reason FROM recommendations ORDER BY id DESC LIMIT 20", conn)
+            conn.close()
+            if not recs.empty:
+                st.dataframe(recs, use_container_width=True, hide_index=True)
+        except Exception:
+            pass
 
     with tabs[5]:
-        st.header("Panel de Inserción y Configuraciones")
-        st.info("Utilice el entorno de la barra lateral (Sidebar) para conmutar la carga algorítmica de Numba en el hardware remoto.")
+        st.header("Panel de Configuración")
+        st.info("Utilice el entorno de la barra lateral (Sidebar) para conmutar la precisión del Motor Monte Carlo y el polling.")
 
     with tabs[6]:
         st.header("Despacho Operacional")
-        st.info("Monitor central de despliegue. Habilitación requerida post-auditoría paramétrica en Fase 3.")
+        
+        active_op = get_active_operation()
+        if active_op and connected:
+            current_price = data_1d.iloc[-1]['close']
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Precio de Entrada", f"${active_op['entry_price']:,.2f}")
+            c2.metric("Precio Actual", f"${current_price:,.2f}", f"{(current_price - active_op['entry_price']) / active_op['entry_price'] * 100:.2f}%")
+            
+            c3.metric("Take Profit Estático", f"${active_op['take_profit']:,.2f}", f"{(active_op['take_profit'] - current_price) / current_price * 100:.2f}% a la meta", delta_color="off")
+            
+            st.markdown("---")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.warning(f"**Ubicación de Stop Loss Crítico:** ${active_op['current_stop_loss']:,.2f}")
+                st.markdown(f"*Distancia hasta el SL: -{(current_price - active_op['current_stop_loss']) / current_price * 100:.2f}%*")
+                
+                # Manejo simple de SL y TP
+                if current_price <= active_op['current_stop_loss']:
+                    st.error("🚨 CRÍTICO: El precio cruzó el nivel de Stop Loss. Operación liquidada preventivamente.")
+                    close_operation(active_op['id'], current_price, 'STOP_LOSS_HIT')
+                    st.rerun()
+                elif current_price >= active_op['take_profit']:
+                    st.success("🎯 OBJETIVO ALCANZADO: El precio tocó el Take Profit. Operación finalizada exitosamente.")
+                    close_operation(active_op['id'], current_price, 'TAKE_PROFIT_HIT')
+                    st.rerun()
+
+            with col_b:
+                if st.button("Cerrar Operación Manualmente AHORA", type="primary"):
+                    close_operation(active_op['id'], current_price, 'MANUAL_CLOSE')
+                    log_to_db("INFO", "Operación cerrada manualmente por el usuario desde la terminal.")
+                    st.session_state.refresh_counter += 1
+                    st.success("Cerrada con éxito.")
+                    st.rerun()
+        else:
+            st.info("🔴 No existe ninguna posición viva en curso. Dirigirse al Módulo de Agentes para observar señales activas.")
 
     # 5. Polling Asíncrono Liviano
     auto_refresh = st.sidebar.checkbox("Activar Polling Universal (15s)", value=True)

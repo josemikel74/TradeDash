@@ -7,11 +7,11 @@ class AgentPlaceholder:
         self.name = name
 
     def status(self):
-        return f"✅ El agente '{self.name}' se encuentra inicializado y a la espera de instrucciones."
+        return f"✅ El agente '{self.name}' se encuentra inicializado y operando con normalidad."
 
 class Analyst(AgentPlaceholder):
     def __init__(self):
-        super().__init__("Analista Cuantitativo de Mercado")
+        super().__init__("Agente Analista Cuantitativo")
         
     def calculate_indicators(self, df):
         """Calcula una suite rigurosa de indicadores técnicos y los añade al dataframe."""
@@ -118,11 +118,120 @@ class Analyst(AgentPlaceholder):
             "info_evt": evt_info,
             "backtest": backtest_accuracy
         }
+    
+    def generate_full_analysis(self, df_1d, df_4h, prob_res):
+        """Genera un análisis completo estructurado."""
+        if df_1d is None or df_1d.empty or prob_res is None:
+            return None
+        
+        latest_1d = df_1d.iloc[-1]
+        latest_4h = df_4h.iloc[-1] if (df_4h is not None and not df_4h.empty) else latest_1d
+        
+        trend = "Alcista" if latest_1d['SMA_20'] > latest_1d['SMA_50'] else "Bajista"
+        rsi = latest_1d.get('RSI_14', 50)
+        momentum = "Sobrecomprado" if rsi > 70 else ("Sobrevendido" if rsi < 30 else "Neutral")
+        
+        analysis = {
+            "trend": trend,
+            "momentum": momentum,
+            "rsi_1d": rsi,
+            "macd_indicator": "Positivo" if latest_1d.get('MACD', 0) > latest_1d.get('MACD_Signal', 0) else "Negativo",
+            "support_level": latest_1d.get('BB_Lower', prob_res['current_price'] * 0.95),
+            "resistance_level": latest_1d.get('BB_Upper', prob_res['current_price'] * 1.05),
+            "volatility": prob_res['garch_vol'],
+            "prob_up": prob_res['prob_up'],
+            "confidence_score": 75 if prob_res['backtest'] > 60 else 50
+        }
+        return analysis
+
+class DevilAdvocate(AgentPlaceholder):
+    def __init__(self):
+        super().__init__("Abogado del Diablo")
+
+    def critique(self, analysis, prob_res):
+        """Genera contra-argumentos estructurados al análisis principal."""
+        if not analysis or not prob_res:
+            return None
+            
+        counter_points = []
+        risks = []
+        
+        if analysis['trend'] == "Alcista":
+            counter_points.append("Riesgo de agotamiento de tendencia: La reversión a la media podría forzar una fuerte corrección bajista.")
+            if analysis['momentum'] == "Sobrecomprado":
+                risks.append("Extrema sobrecompra en RSI indica alta probabilidad de corrección inminente.")
+        else:
+            counter_points.append("Posible trampa bajista (Bear Trap): Volúmenes bajos pueden preceder un rally repentino.")
+            if analysis['momentum'] == "Sobrevendido":
+                risks.append("Sobrevendido, un short tardío conlleva riesgo asimétrico desfavorable.")
+                
+        if prob_res['garch_vol'] > 80:
+            risks.append(f"Volatilidad GARCH extrema ({prob_res['garch_vol']:.1f}%). Stop losses pueden ser barridos fácilmente.")
+            
+        if prob_res['prob_up'] > 60:
+            counter_points.append(f"Sesgo de overconfidence en Monte Carlo: La probabilidad del {prob_res['prob_up']:.1f}% asume distribuciones continuas que ignoran eventos cisne negro.")
+            
+        return {
+            "counter_arguments": counter_points if counter_points else ["No hay contra-argumentos estructurales fuertes detectados en datos de precio, vigilar fundamentales."],
+            "hidden_risks": risks if risks else ["Riesgos matemáticos bajo medias móviles estándar."],
+            "confidence_penalty": len(risks) * 5
+        }
+
+class TradingAgent(AgentPlaceholder):
+    def __init__(self):
+        super().__init__("Agente Trading (Especialista LONG)")
+        
+    def generate_recommendation(self, analysis, critique, prob_res):
+        """Genera recomendación EXCLUSIVAMENTE LONG basada en análisis y críticas."""
+        if not analysis or not prob_res:
+            return None
+            
+        current_price = prob_res['current_price']
+        
+        # Ajustar confianza
+        final_confidence = max(0, analysis['confidence_score'] - critique.get('confidence_penalty', 0))
+        
+        # Solo LONG
+        if analysis['trend'] == 'Alcista' or (analysis['trend'] == 'Bajista' and analysis['momentum'] == 'Sobrevendido'):
+            if prob_res['prob_up'] > 50:
+                # Sugerir LONG
+                entry = current_price
+                sl_distance = (current_price - analysis['support_level']) * 1.2 # Añadir buffer al soporte
+                sl = current_price - sl_distance
+                
+                # Relación Riesgo:Recompensa 1:2
+                tp = current_price + (sl_distance * 2)
+                
+                # Position Sizing (Max 2% riesgo asumiendo cuenta standard)
+                risk_per_coin = current_price - sl
+                # Asumiendo cuenta hipotética de 10k para sugerencia (simplificado)
+                # En la realidad se usaría el balance real
+                size_pct = 1.0 if prob_res['garch_vol'] > 60 else 2.0
+                
+                reason = "Convergencia de probabilidades a favor de LONG. "
+                if critique['hidden_risks']:
+                    reason += "Requiere precaución por riesgos detectados: " + " / ".join(critique['hidden_risks'])
+                
+                return {
+                    "action": "LONG",
+                    "entry_price": entry,
+                    "stop_loss": sl,
+                    "take_profit": tp,
+                    "position_size_pct": size_pct,
+                    "confidence": final_confidence,
+                    "reason": reason
+                }
+                
+        return {
+            "action": "HOLD",
+            "reason": "Condiciones insuficientes o demasiado arriesgadas para buscar entradas LONG en este momento.",
+            "confidence": final_confidence
+        }
 
 class RiskManager(AgentPlaceholder):
     def __init__(self):
-        super().__init__("Gestor de Riesgo y Capital")
+        super().__init__("Agente de Gestor de Riesgos")
 
 class Executor(AgentPlaceholder):
     def __init__(self):
-        super().__init__("Ejecutor de Órdenes")
+        super().__init__("Agente de Terminal de Ejecución")
