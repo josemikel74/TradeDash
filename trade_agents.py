@@ -164,8 +164,8 @@ class Analyst(AgentPlaceholder):
         # Lookback auto-ajustado: en base a la volatilidad
         optimal_lookback = 30 if prob_res['garch_vol'] > 60 else 60
         
-        # Umbral GARCH sugerido (Vol thresholds)
-        optimal_vol_thresh = np.percentile(returns.rolling(14).std() * np.sqrt(365) * 100, 75) if not returns.empty else 50.0
+        roll_std = returns.rolling(14).std().dropna()
+        optimal_vol_thresh = np.percentile(roll_std * np.sqrt(365) * 100, 75) if not roll_std.empty else 50.0
 
         return {
             "brier_score": brier_score,

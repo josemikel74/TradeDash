@@ -340,11 +340,22 @@ def main():
         lm = get_latest_learning_metrics()
         if lm:
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Brier Score", f"{lm['brier_score']:.4f}", help="0 = Perfecto, 1 = Error Total")
-            m2.metric("Error de Calibración", f"{lm['calibration_error']:.4f}")
-            m3.metric("Lookback Óptimo", f"{lm['optimal_lookback']}d")
-            m4.metric("Umbral GARCH", f"{lm['optimal_vol_threshold']:.1f}%")
-            if lm['brier_score'] > 0.4:
+            brier_val = lm.get('brier_score')
+            cal_err_val = lm.get('calibration_error')
+            look_val = lm.get('optimal_lookback')
+            vol_val = lm.get('optimal_vol_threshold')
+            
+            brier_str = f"{brier_val:.4f}" if brier_val is not None else "N/A"
+            cal_err_str = f"{cal_err_val:.4f}" if cal_err_val is not None else "N/A"
+            look_str = f"{look_val}d" if look_val is not None else "N/A"
+            vol_str = f"{vol_val:.1f}%" if vol_val is not None else "N/A"
+            
+            m1.metric("Brier Score", brier_str, help="0 = Perfecto, 1 = Error Total")
+            m2.metric("Error de Calibración", cal_err_str)
+            m3.metric("Lookback Óptimo", look_str)
+            m4.metric("Umbral GARCH", vol_str)
+            
+            if brier_val is not None and brier_val > 0.4:
                 st.warning("⚠️ Precisión predictiva degradada recientemente. Reconsidera las operaciones algorítmicas.")
         
         st.subheader("Terminal Root Logs")
