@@ -4,7 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from trade_utils import fetch_data, init_db, log_to_db, save_indicators, save_recommendation, update_recommendation_status, open_operation, get_active_operation, close_operation
-from agents import Analyst, RiskManager, Executor, DevilAdvocate, TradingAgent
+from trade_agents import Analyst, RiskManager, Executor, DevilAdvocate, TradingAgent
 from datetime import datetime
 import time
 import warnings
@@ -20,8 +20,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-from trade_utils import fetch_data, init_db, log_to_db, save_indicators, save_recommendation, update_recommendation_status, open_operation, get_active_operation, close_operation
-from trade_agents import Analyst, RiskManager, Executor, DevilAdvocate, TradingAgent
+
 # 2. Inicialización de la base de datos local
 init_db()
 
