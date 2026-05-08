@@ -4,7 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import io
-from trade_utils import fetch_data, init_db, log_to_db, save_indicators, save_recommendation, update_recommendation_status, open_operation, get_active_operation, close_operation, save_learning_metrics, get_latest_learning_metrics, update_stop_loss
+from trade_utils import fetch_data, init_db, log_to_db, save_indicators, save_recommendation, update_recommendation_status, open_operation, get_active_operation, close_operation, save_learning_metrics, get_latest_learning_metrics, update_stop_loss, backup_database, reset_database
 from trade_agents import Analyst, RiskManager, Executor, DevilAdvocate, TradingAgent
 from datetime import datetime
 import time
@@ -28,7 +28,7 @@ init_db()
 # 3. Caché de extracción y cálculo de indicadores técnicos
 @st.cache_data(ttl=15, show_spinner=False)
 def fetch_and_process_data(_refresh_counter):
-    data_1d = fetch_data('BTC/USD', '1d', limit=250) # Mas data para la SMA 200
+    data_1d = fetch_data('BTC/USD', '1d', limit=250)
     data_4h = fetch_data('BTC/USD', '4h', limit=250)
     
     analyst = Analyst()
@@ -49,6 +49,11 @@ def compute_probabilities(df, precision_level, _refresh_counter):
         return None
     analyst = Analyst()
     t0 = time.time()
+    
+    # Safe Mode reduction
+    if st.session_state.get('safe_mode', False):
+        precision_level = "Rápido"
+        
     res = analyst.run_probability_engine(df, precision_level)
     if res:
         res['calc_time'] = time.time() - t0
@@ -110,6 +115,7 @@ def render_chart(df, title, show_indicators=True):
         margin=dict(l=10, r=10, t=40, b=10),
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
+        hovermode='x unified',
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
     return fig
@@ -149,17 +155,19 @@ def main():
         <style>
             .stApp { background-color: #0b0e14; color: #ffffff; }
             div[data-testid="stMetricValue"] { color: #ffffff; font-size: 2.2rem; font-weight: 700; }
-            .stButton>button { height: 3em; font-size: 1.1em; font-weight: bold; border-radius: 8px; }
-            .prob-card { background-color: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; }
+            .stButton>button { height: 3em; font-size: 1.1em; font-weight: bold; border-radius: 8px; border: 1px solid #334155; }
+            .stButton>button:hover { background-color: #1e293b; color: white; border-color: #38bdf8; }
+            .prob-card { background-color: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+            div[data-testid="stMetricLabel"] { color: #94a3b8; font-size: 1.1em; }
         </style>
     """, unsafe_allow_html=True)
 
-    st.title("🏦 Terminal Institucional | Fase 3")
+    st.title("🏦 Terminal Institucional | Fase 5")
     
     if 'refresh_counter' not in st.session_state:
         st.session_state.refresh_counter = 0
 
-    log_to_db("INFO", "Aplicación cargada.", log_to_file=False)
+    log_to_db("INFO", "Aplicación cargada (Fase 5 - Optimizada).", log_to_file=False)
 
     tabs = st.tabs([
         "Dashboard Principal", 
@@ -168,20 +176,34 @@ def main():
         "Supervisor", 
         "Historial/Riesgo", 
         "Configuración", 
-        "Operación en Curso"
+        "Operación en Curso",
+        "📖 Acerca / Guía"
     ])
     
     # Sidebar
+    st.sidebar.markdown("### ⚙️ Control de Sistema")
+    st.session_state.safe_mode = st.sidebar.toggle("🛡️ Safe Mode (Máxima Estabilidad)", value=False, help="Fuerza cálculos rápidos y evita bloqueos UI si el hardware remoto falla.")
+    
     st.sidebar.markdown("### ⚙️ Motor Matemático")
-    precision = st.sidebar.select_slider("Precisión de Simulador Monte Carlo", options=["Rápido", "Normal", "Preciso"], value="Normal")
+    precision = st.sidebar.select_slider("Precisión MC", options=["Rápido", "Normal", "Preciso"], value="Normal", disabled=st.session_state.safe_mode)
+    
+    if st.session_state.safe_mode:
+        st.sidebar.warning("Safe Mode Activo: Precisión capada a 'Rápido'.")
     
     data_1d, data_4h = fetch_and_process_data(st.session_state.refresh_counter)
     connected = data_1d is not None and data_4h is not None
 
     prob_res = None
     if connected:
-        with st.spinner("Procesando Motor de Probabilidades..."):
+        with st.status("🧠 Extrayendo y Analizando Modelos de Probabilidad...", expanded=True) as status:
+            st.write("1. Analizando Time Series H1 y D1...")
+            st.write("2. Ejecutando Calibración GARCH & Simulación Estocástica...")
             prob_res = compute_probabilities(data_1d, precision, st.session_state.refresh_counter)
+            if prob_res:
+                st.write("3. Vectores Calculados en Caché.")
+                status.update(label="Motor Matemático Concluido", state="complete", expanded=False)
+            else:
+                status.update(label="Fallo en la Simulación Estocástica", state="error", expanded=False)
 
     with tabs[0]:
         st.header("Dashboard Principal")
@@ -324,9 +346,19 @@ def main():
         
         status_col, btn_col = st.columns([3, 1])
         with status_col:
-            st.markdown(f"**Conector API Master (ccxt):** {'🟢 Operativo' if connected else '🔴 Error Crítico de Conexión'}")
-            st.markdown(f"**Motor Matemático Asíncrono:** {'🟢 En Caché' if prob_res else '🔴 Fallido / No Listo'}")
-            st.markdown(f"**Enjambre de Agentes:** {'🟢 Activos y Sincronizados' if connected else '🔴 En Espera'}")
+            # Estado Salud del Sistema
+            st.markdown(f"**Conector API Master (ccxt):** {'🟢 Operativo' if connected else '🔴 Error Crítico de Conexión (Reintentando...)'}")
+            st.markdown(f"**Motor Matemático Asíncrono:** {'🟢 En Caché & Operativo' if prob_res else '🔴 Fallido / No Listo'}")
+            
+            db_conn_ok = True
+            try:
+                db_tst = sqlite3.connect('data/trading.db')
+                db_tst.close()
+            except:
+                db_conn_ok = False
+            
+            st.markdown(f"**Gestor SQLite Local:** {'🟢 Operativo' if db_conn_ok else '🔴 Corrupción en Base de Datos'}")
+            st.markdown(f"**Modo Seguro:** {'🟢 Activo (Rápido)' if st.session_state.safe_mode else '⚪ Apagado'}")
             
         with btn_col:
             if st.button("🚨 REFRESH TOTAL SISTEMA", type="primary", use_container_width=True):
@@ -436,12 +468,19 @@ def main():
                 c3.metric("Expectancy", f"${expectancy:.2f}", help="Retorno promedio esperado por operación")
                 c4.metric("PnL Total", f"${ops['pnl'].sum():,.2f}")
                 
-                # Equity Curve
-                ops['cum_pnl'] = ops['pnl'].cumsum()
-                fig_eq = go.Figure()
-                fig_eq.add_trace(go.Scatter(x=ops['close_time'], y=ops['cum_pnl'], mode='lines+markers', line=dict(color='#22c55e' if ops['pnl'].sum()>=0 else '#ef4444', width=2), name='Cumulative PnL'))
-                fig_eq.update_layout(title="Equity Curve", template="plotly_dark", height=350, margin=dict(l=10, r=10, t=30, b=10))
-                st.plotly_chart(fig_eq, use_container_width=True)
+                # Equity Curve y Distribución
+                col_eq, col_dist = st.columns([2, 1])
+                with col_eq:
+                    ops['cum_pnl'] = ops['pnl'].cumsum()
+                    fig_eq = go.Figure()
+                    fig_eq.add_trace(go.Scatter(x=ops['close_time'], y=ops['cum_pnl'], mode='lines+markers', line=dict(color='#22c55e' if ops['pnl'].sum()>=0 else '#ef4444', width=2), name='Cumulative PnL'))
+                    fig_eq.update_layout(title="Curva de Equidad (Equity Curve)", template="plotly_dark", height=320, margin=dict(l=10, r=10, t=30, b=10), hovermode="x unified")
+                    st.plotly_chart(fig_eq, use_container_width=True)
+                
+                with col_dist:
+                    fig_dist = go.Figure(data=[go.Histogram(x=ops['pnl'], marker_color='#38bdf8')])
+                    fig_dist.update_layout(title="Distribución de Retornos", template="plotly_dark", height=320, margin=dict(l=10, r=10, t=30, b=10))
+                    st.plotly_chart(fig_dist, use_container_width=True)
                 
             st.subheader("Todas las Operaciones")
             if not all_ops.empty:
@@ -486,6 +525,19 @@ def main():
                 compute_probabilities.clear()
                 fetch_and_process_data.clear()
                 st.success("Caché limpiada. Se recalcularán todos los vectores en el próximo ciclo.")
+                
+            st.divider()
+            
+            with st.expander("⚠️ Opciones Peligrosas / RESET"):
+                st.warning("El reseteo eliminará permanentemente todo el historial, métricas de aprendizaje y operaciones de la base de datos.")
+                confirm_reset = st.checkbox("Confirmar Reseteo Total")
+                if st.button("🚨 Resetear Base de Datos Local", type="primary", disabled=not confirm_reset):
+                    if reset_database():
+                        st.success("Base de datos de historial y operaciones limpiada correctamente.")
+                        st.session_state.refresh_counter += 1
+                        st.rerun()
+                    else:
+                        st.error("Error al intentar reiniciar contexto local.")
 
     with tabs[6]:
         st.header("Despacho Operacional")
@@ -534,6 +586,28 @@ def main():
                     st.rerun()
         else:
             st.info("🔴 No existe ninguna posición viva en curso. Dirigirse al Módulo de Agentes para observar señales activas.")
+
+    with tabs[7]:
+        st.header("📖 Acerca / Guía del Sistema")
+        st.markdown("""
+        ### Sistema Cuantitativo - Arquitectura Fase 5
+        Esta terminal integra un modelo matemático de riesgo avanzado (GBM + GARCH + EVT) junto con un enjambre de agentes especializados para ofrecer señales robustas y cuantificables.
+        
+        #### 🤖 Enjambre de Agentes
+        - **Agente Analista Cuantitativo:** Examina los datos en frío, produce proyecciones técnicas e invoca el motor probabilístico estocástico en la nube.
+        - **Abogado del Diablo:** Agente contrapuesto que busca sistemáticamente fallos, riesgos o sesgos en las proyecciones alcistas para mitigar riesgos ocultos.
+        - **Agente Trading (Especialista LONG):** Condensa las señales y produce una recomendación precisa para entrar al mercado, dimensionar el riesgo (Position Sizing) y gestionar el Stop Loss.
+
+        #### 🧮 Metodología Matemática
+        1. **Movimiento Browniano Geométrico (GBM):** Simula de forma iterativa (Monte Carlo) las futuras sendas de precios usando el Drift (tendencia subyacente) y la Volatilidad.
+        2. **GARCH (Generalised Autoregressive Conditional Heteroskedasticity):** Modeliza la volatilidad previendo agrupaciones de varianza y reajustando dinámicamente el riesgo a cortísimo plazo.
+        3. **Teoría de Valores Extremos (EVT):** Mide el riesgo de eventos "Cisne Negro" focalizándose exclusivamente en la cola de distribución de los peores retornos (Value at Risk al 95%).
+
+        #### 🛡️ Gestión de Riesgo y <i>Safe Mode</i>
+        El **Safe Mode** prioriza la estabilidad de la plataforma limitando el cómputo iterativo en situaciones de alta carga. El usuario debe mantener estricta observancia del **Stop Loss Dinámico** y jamás exceder el **Riego Máximo por Operación** configurado en sus parámetros (default: 2% del total de portafolio simulado).
+        
+        > *Nota del desarrollador*: La persistencia de datos (SQLite) y las proyecciones estocásticas ahora funcionan en confluencia (Laboratorio Vivo) con un modelo auto-regulado. Las actualizaciones se rigen bajo asincronía y el sistema puede recuperarse ante cortes de proveedor de datos. 
+        """)
 
     # 5. Polling Asíncrono Liviano
     auto_refresh = st.sidebar.checkbox("Activar Polling Universal (15s)", value=True)
