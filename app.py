@@ -9,7 +9,8 @@ from trade_utils import (
     save_recommendation, update_recommendation_status, 
     open_operation, get_active_operation, close_operation, 
     save_learning_metrics, get_latest_learning_metrics, 
-    update_stop_loss
+    update_stop_loss, backup_database, reset_database,
+    save_reflection
 )
 from trade_agents import Analyst, RiskManager, Executor, DevilAdvocate, TradingAgent
 from datetime import datetime
@@ -194,12 +195,12 @@ def main():
         </style>
     """, unsafe_allow_html=True)
 
-    st.title("🏦 Terminal Institucional | Fase 5")
+    st.title("🏦 Terminal Institucional | Génesis")
     
     if 'refresh_counter' not in st.session_state:
         st.session_state.refresh_counter = 0
 
-    log_to_db("INFO", "Aplicación cargada (Fase 5 - Optimizada).", log_to_file=False)
+    log_to_db("INFO", "Aplicación cargada (Fase 6 - Génesis).", log_to_file=False)
 
     tabs = st.tabs([
         "Dashboard Principal", 
@@ -209,6 +210,7 @@ def main():
         "Historial/Riesgo", 
         "Configuración", 
         "Operación en Curso",
+        "Filosofía Génesis",
         "📖 Acerca / Guía"
     ])
     
@@ -342,6 +344,12 @@ def main():
             
             if active_op:
                 st.info(f"Hay una operación en curso actualmente. Finaliza la operación antes de aplicar nuevas recomendaciones. Visite la pestaña de 'Operación en Curso'.")
+            elif recommendation['confidence'] < 60 and recommendation['action'] == 'LONG':
+                st.warning(f"**Recomendación:** {recommendation['action']} | **Confianza Riesgosa:** {recommendation['confidence']}%")
+                st.markdown(f"**Razón:** {recommendation['reason']}")
+                st.markdown("### 🧘🏻‍♂️ Modo Paciencia Activa")
+                st.info("El sistema evalúa que las condiciones probabilísticas no superan el umbral de disciplina óptima. **Sugerencia: No operar hoy.** La paciencia es la cualidad primordial de un operador institucional.")
+                
             elif recommendation['action'] == 'LONG':
                 st.success(f"**Recomendación:** {recommendation['action']} | **Confianza Final:** {recommendation['confidence']}%")
                 st.markdown(f"**Razón:** {recommendation['reason']}")
@@ -353,22 +361,33 @@ def main():
                 c3.metric("Take Profit", f"${recommendation['take_profit']:,.2f}")
                 c4.metric("Tamaño (Riesgo)", f"{recommendation['position_size_pct']:.1f}%")
                 
-                colA, colB = st.columns(2)
-                with colA:
-                    if st.button("✅ Aprobar e Iniciar Operación LONG Simulada", type="primary", use_container_width=True):
-                        # Guardar rec y operación
+                st.markdown("### 🏛️ Mentoría y Revisión (Génesis)")
+                with st.form("decision_form"):
+                    st.markdown("**Antes de ejecutar, pausa y reflexiona:** ¿Cuál es tu razonamiento emocional o técnico para aceptar/rechazar este setup?")
+                    reflection = st.text_area("Reflexión (Opcional, pero recomendada)", placeholder="Ej. Acepto porque veo confluencia con EVT...")
+                    
+                    colA, colB = st.columns(2)
+                    submit_acc = colA.form_submit_button("✅ Aprobar e Iniciar Operación LONG", type="primary", use_container_width=True)
+                    submit_rej = colB.form_submit_button("❌ Rechazar Sugerencia", type="secondary", use_container_width=True)
+                    
+                    if submit_acc:
                         rec_id = save_recommendation("BTC/USD", recommendation['entry_price'], recommendation['stop_loss'], recommendation['take_profit'], recommendation['position_size_pct'], recommendation['confidence'], recommendation['reason'])
                         update_recommendation_status(rec_id, 'ACCEPTED')
                         open_operation(rec_id, "BTC/USD", recommendation['entry_price'], recommendation['stop_loss'], recommendation['take_profit'], recommendation['position_size_pct'])
+                        if reflection:
+                            save_reflection(rec_id, 'RECOMMENDATION_ACCEPTED', reflection)
                         log_to_db("INFO", f"Operación LONG Aprobada y abierta en DB.")
                         st.session_state.refresh_counter += 1
                         st.rerun()
-                with colB:
-                    if st.button("❌ Rechazar Sugerencia", type="secondary", use_container_width=True):
+                        
+                    if submit_rej:
                         rec_id = save_recommendation("BTC/USD", recommendation['entry_price'], recommendation['stop_loss'], recommendation['take_profit'], recommendation['position_size_pct'], recommendation['confidence'], recommendation['reason'])
                         update_recommendation_status(rec_id, 'REJECTED')
+                        if reflection:
+                            save_reflection(rec_id, 'RECOMMENDATION_REJECTED', reflection)
                         log_to_db("INFO", "Recomendación rechazada por el usuario.")
                         st.warning("Recomendación denegada. Guardada en el historial de entrenamiento.")
+                        st.rerun()
             else:
                 st.warning(f"**Recomendación:** {recommendation['action']}")
                 st.markdown(f"**Razón:** {recommendation['reason']}")
@@ -610,35 +629,68 @@ def main():
                 st.info(f"**Probabilidad Estimada de Éxito Actualizada:** {prob_res['prob_up']:.1f}%")
                 pnl_actual = (current_price - active_op['entry_price']) / active_op['entry_price'] * 100
                 st.metric("PnL Flotante Aprox.", f"{pnl_actual:.2f}%")
-                if st.button("Cerrar Operación Manualmente AHORA", type="primary"):
-                    close_operation(active_op['id'], current_price, 'MANUAL_CLOSE')
-                    log_to_db("INFO", "Operación cerrada manualmente por el usuario desde la terminal.")
-                    st.session_state.refresh_counter += 1
-                    st.success("Cerrada con éxito, resultados traspasados a métricas de Historial.")
-                    st.rerun()
+                
+                with st.form("close_operation_form"):
+                    st.markdown("### 🏛️ Reflexión Final (Génesis)")
+                    st.markdown("Cerrar prematuramente altera la esperanza matemática. ¿Por qué cierras hoy?")
+                    reflection_close = st.text_area("Motivo del cierre:", placeholder="Siento miedo irracional, o veo una debilidad estructural...")
+                    
+                    if st.form_submit_button("Cerrar Operación Manualmente AHORA", type="primary", use_container_width=True):
+                        close_operation(active_op['id'], current_price, 'MANUAL_CLOSE')
+                        if reflection_close:
+                            save_reflection(active_op['id'], 'OPERATION_CLOSED', reflection_close)
+                        log_to_db("INFO", "Operación cerrada manualmente por el usuario desde la terminal.")
+                        st.session_state.refresh_counter += 1
+                        st.success("Cerrada con éxito, resultados traspasados a métricas de Historial.")
+                        st.rerun()
         else:
             st.info("🔴 No existe ninguna posición viva en curso. Dirigirse al Módulo de Agentes para observar señales activas.")
 
     with tabs[7]:
+        st.header("Filosofía Génesis y Mentoría")
+        st.markdown("""
+        ### 🌱 El Manifiesto Génesis
+        El éxito en los mercados no proviene de la brillantez algorítmica aislada, sino de la combinación de **Rigor Matemático** y **Paciencia Psicológica**.
+        
+        Esta terminal (Fase 6) ha evolucionado para no ser solo un ejecutor mecánico. Es tu **espejo y tu mentor**. Sus fundamentos:
+        - **Estabilidad y Robustez:** Las métricas sin contexto fallan. Un sistema debe ser resiliente a shocks.
+        - **Disciplina Inquebrantable:** El Abogado del Diablo y el Modo de Paciencia Activa no existen para molestar, sino para protegerte de la sobreoperación (overtrading).
+        - **Aprendizaje Continuo:** Cada vez que la curva de error se desvía, el sistema auto-calibra su lookback y sus umbrales. Así como la máquina se adapta, tú debes hacerlo mediante las *Reflexiones de Trading*.
+        
+        #### 🏛️ Lecciones y Sesgos del Operador
+        El sistema captura tus razonamientos para que en el futuro puedas auditar no solo *qué* operación abriste, sino *por qué*. Un trader que no sabe justificar su trade, está apostando.
+        """)
+        
+        st.subheader("📚 Tus Reflexiones Recientes")
+        try:
+            conn = sqlite3.connect('data/trading.db')
+            reflections = pd.read_sql_query("SELECT id, related_id, type, reflection, timestamp FROM user_reflections ORDER BY id DESC LIMIT 15", conn)
+            conn.close()
+            if not reflections.empty:
+                st.dataframe(reflections, use_container_width=True, hide_index=True)
+            else:
+                st.info("Aún no tienes reflexiones guardadas. ¡Empieza a escribir tus planteamientos al aceptar/rechazar trades!")
+        except Exception:
+            st.info("El sistema de registro de mentoría está en espera.")
+            
+    with tabs[8]:
         st.header("📖 Acerca / Guía del Sistema")
         st.markdown("""
-        ### Sistema Cuantitativo - Arquitectura Fase 5
-        Esta terminal integra un modelo matemático de riesgo avanzado (GBM + GARCH + EVT) junto con un enjambre de agentes especializados para ofrecer señales robustas y cuantificables.
+        ### Sistema Cuantitativo - Arquitectura Génesis (Fase 6)
+        Esta terminal integra un modelo matemático de riesgo avanzado (GBM + GARCH + EVT) con una capa auto-regulada de aprendizaje (Laboratorio Vivo) y una filosofía de mentoría activa.
         
         #### 🤖 Enjambre de Agentes
         - **Agente Analista Cuantitativo:** Examina los datos en frío, produce proyecciones técnicas e invoca el motor probabilístico estocástico en la nube.
-        - **Abogado del Diablo:** Agente contrapuesto que busca sistemáticamente fallos, riesgos o sesgos en las proyecciones alcistas para mitigar riesgos ocultos.
-        - **Agente Trading (Especialista LONG):** Condensa las señales y produce una recomendación precisa para entrar al mercado, dimensionar el riesgo (Position Sizing) y gestionar el Stop Loss.
+        - **Abogado del Diablo:** Agente contrapuesto que evalúa sesgos cognitivos e ineficiencias matemáticas del setup.
+        - **Agente Trading:** Sintetiza el trade, calcula el VaR e impone un *Stop Loss Cuantitativo*. Si el sistema nota estrés probabilístico, entrará en **Paciencia Activa**.
 
-        #### 🧮 Metodología Matemática
-        1. **Movimiento Browniano Geométrico (GBM):** Simula de forma iterativa (Monte Carlo) las futuras sendas de precios usando el Drift (tendencia subyacente) y la Volatilidad.
-        2. **GARCH (Generalised Autoregressive Conditional Heteroskedasticity):** Modeliza la volatilidad previendo agrupaciones de varianza y reajustando dinámicamente el riesgo a cortísimo plazo.
-        3. **Teoría de Valores Extremos (EVT):** Mide el riesgo de eventos "Cisne Negro" focalizándose exclusivamente en la cola de distribución de los peores retornos (Value at Risk al 95%).
+        #### 🧮 Metodología Matemática Total
+        1. **Movimiento Browniano Geométrico (GBM):** Simula trayectorias Monte Carlo usando el *Drift* subyacente y distribuciones estocásticas.
+        2. **GARCH (Generalised Autoregressive Conditional Heteroskedasticity):** Componente dinámico de volatilidad que captura "clusters", reajustando hiperparámetros si la matriz se desvía (Brier Score > 0.4).
+        3. **Teoría de Valores Extremos (EVT):** Enfoque exclusivo en la "Cola Izquierda" (peores retornos) modelando el *Value at Risk* (VaR 95%) para limitar el riesgo sistémico de ruina.
 
-        #### 🛡️ Gestión de Riesgo y <i>Safe Mode</i>
-        El **Safe Mode** prioriza la estabilidad de la plataforma limitando el cómputo iterativo en situaciones de alta carga. El usuario debe mantener estricta observancia del **Stop Loss Dinámico** y jamás exceder el **Riego Máximo por Operación** configurado en sus parámetros (default: 2% del total de portafolio simulado).
-        
-        > *Nota del desarrollador*: La persistencia de datos (SQLite) y las proyecciones estocásticas ahora funcionan en confluencia (Laboratorio Vivo) con un modelo auto-regulado. Las actualizaciones se rigen bajo asincronía y el sistema puede recuperarse ante cortes de proveedor de datos. 
+        #### 🛡️ Gestión de Riesgo, <i>Safe Mode</i> y <i>Auto-Optimization</i>
+        El **Safe Mode** asegura la estabilidad reduciendo iteraciones cuando el pipeline padece estrés computacional. El usuario está atado a reflejos mandatorios (reflexión) que añaden fricción constructiva al proceso neuro-cognitivo de operar.
         """)
 
     # 5. Polling Asíncrono Liviano

@@ -90,6 +90,16 @@ def init_db():
                 optimal_vol_threshold REAL
             )
         ''')
+        # Tabla para reflexiones del usuario (Mentoría Genesis)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_reflections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                related_id INTEGER,
+                type TEXT,
+                reflection TEXT,
+                timestamp TEXT
+            )
+        ''')
         conn.commit()
     except Exception as e:
         logger.error(f"Error inicializando BD: {e}")
@@ -218,6 +228,16 @@ def get_latest_learning_metrics():
     if not df.empty:
         return df.iloc[0].to_dict()
     return None
+
+def save_reflection(related_id, rel_type, reflection):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO user_reflections (related_id, type, reflection, timestamp)
+        VALUES (?, ?, ?, ?)
+    ''', (related_id, rel_type, reflection, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    conn.commit()
+    conn.close()
 
 def fetch_data(symbol='BTC/USD', timeframe='1d', limit=250, retries=3):
     """
