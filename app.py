@@ -9,8 +9,7 @@ from trade_utils import (
     save_recommendation, update_recommendation_status, 
     open_operation, get_active_operation, close_operation, 
     save_learning_metrics, get_latest_learning_metrics, 
-    update_stop_loss, backup_database, reset_database,
-    save_reflection
+    update_stop_loss, save_reflection
 )
 from trade_agents import Analyst, RiskManager, Executor, DevilAdvocate, TradingAgent
 from datetime import datetime
