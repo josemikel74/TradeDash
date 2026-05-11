@@ -1,6 +1,15 @@
 import pandas as pd
 import numpy as np
-from math_engine import run_gbm_monte_carlo, calculate_garch_volatility, bayesian_update, extreme_value_theory
+
+try:
+    from math_engine import run_gbm_monte_carlo, calculate_garch_volatility, bayesian_update, extreme_value_theory
+except ImportError as e:
+    # Graceful degradation si falla
+    run_gbm_monte_carlo = None
+    calculate_garch_volatility = None
+    bayesian_update = None
+    extreme_value_theory = None
+    print(f"Error loading math_engine: {e}")
 
 class AgentPlaceholder:
     def __init__(self, name):

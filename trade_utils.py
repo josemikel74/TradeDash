@@ -1,7 +1,6 @@
 import os
 import sqlite3
 import logging
-import ccxt
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -243,6 +242,7 @@ def fetch_data(symbol='BTC/USD', timeframe='1d', limit=250, retries=3):
     """
     Obtiene datos OHLCV de Kraken manejando errores y reintentos.
     """
+    import ccxt
     exchange = ccxt.kraken()
     for attempt in range(retries):
         try:

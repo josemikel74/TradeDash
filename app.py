@@ -4,14 +4,17 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import io
-from trade_utils import (
-    fetch_data, init_db, log_to_db, save_indicators, 
-    save_recommendation, update_recommendation_status, 
-    open_operation, get_active_operation, close_operation, 
-    save_learning_metrics, get_latest_learning_metrics, 
-    update_stop_loss, save_reflection
-)
-from trade_agents import Analyst, RiskManager, Executor, DevilAdvocate, TradingAgent
+try:
+    from trade_utils import fetch_data, init_db, log_to_db, save_indicators, save_recommendation, update_recommendation_status, open_operation, get_active_operation, close_operation, save_learning_metrics, get_latest_learning_metrics, update_stop_loss, save_reflection
+except Exception as e:
+    st.error(f"Critical System Error importing trade_utils: {e}")
+    st.stop()
+
+try:
+    from trade_agents import Analyst, RiskManager, Executor, DevilAdvocate, TradingAgent
+except Exception as e:
+    st.error(f"Critical System Error importing trade_agents: {e}")
+    st.stop()
 from datetime import datetime
 import time
 import warnings
