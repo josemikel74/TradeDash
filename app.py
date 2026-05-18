@@ -193,11 +193,11 @@ def main():
     st.markdown("""
         <style>
             .stApp { background-color: #0b0e14; color: #ffffff; }
-            div[data-testid="stMetricValue"] { color: #ffffff; font-size: 2.2rem; font-weight: 700; }
+            div[data-testid="stMetricValue"], div[data-testid="stMetricValue"] * { color: #ffffff !important; font-size: 2.2rem !important; font-weight: 700 !important; }
             .stButton>button { height: 3em; font-size: 1.1em; font-weight: bold; border-radius: 8px; border: 1px solid #334155; }
             .stButton>button:hover { background-color: #1e293b; color: white; border-color: #38bdf8; }
             .prob-card { background-color: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
-            div[data-testid="stMetricLabel"] { color: #94a3b8; font-size: 1.1em; }
+            div[data-testid="stMetricLabel"], div[data-testid="stMetricLabel"] * { color: #ffffff !important; font-size: 1.1em !important; font-weight: 600 !important; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -246,7 +246,12 @@ def main():
                 status.update(label="Fallo en la Simulación Estocástica", state="error", expanded=False)
 
     with tabs[0]:
-        st.header("Dashboard Principal")
+        st.markdown("""
+        <div style="display: flex; align-items: center; margin-bottom: 20px;">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/4/46/Bitcoin.svg" width="50" style="margin-right: 15px;"/>
+            <h2 style="margin: 0; padding: 0;">Dashboard Principal</h2>
+        </div>
+        """, unsafe_allow_html=True)
         if connected and prob_res:
             latest = data_1d.iloc[-1]
             prev = data_1d.iloc[-2]
@@ -370,7 +375,7 @@ def main():
                 st.markdown("### 🏛️ Mentoría y Revisión (Génesis)")
                 with st.form("decision_form"):
                     st.markdown("**Antes de ejecutar, pausa y reflexiona:** ¿Cuál es tu razonamiento emocional o técnico para aceptar/rechazar este setup?")
-                    reflection = st.text_area("Reflexión (Opcional, pero recomendada)", placeholder="Ej. Acepto porque veo confluencia con EVT...")
+                    reflection = st.text_area("Reflexión (Opcional, pero recomendada)", placeholder="Ej. Acepto porque veo confluencia con EVT...", key="reflection_open")
                     
                     colA, colB = st.columns(2)
                     submit_acc = colA.form_submit_button("✅ Aprobar e Iniciar Operación LONG", type="primary", use_container_width=True)
@@ -600,46 +605,56 @@ def main():
         st.header("Despacho Operacional")
         
         active_op = get_active_operation()
-        if active_op and connected:
-            current_price = data_1d.iloc[-1]['close']
+        if active_op:
+            if connected and prob_res:
+                current_price = data_1d.iloc[-1]['close']
+                current_prob = prob_res['prob_up']
+            else:
+                current_price = active_op['entry_price']
+                current_prob = 50.0
+                st.warning("⚠️ Mercado no sincronizado en este ciclo. Visualizando estado base de la operación.")
+                
             c1, c2, c3 = st.columns(3)
             c1.metric("Precio de Entrada", f"${active_op['entry_price']:,.2f}")
-            c2.metric("Precio Actual", f"${current_price:,.2f}", f"{(current_price - active_op['entry_price']) / active_op['entry_price'] * 100:.2f}%")
+            c2.metric("Precio Referencia", f"${current_price:,.2f}", f"{(current_price - active_op['entry_price']) / active_op['entry_price'] * 100:.2f}%")
             
-            c3.metric("Take Profit Estático", f"${active_op['take_profit']:,.2f}", f"{(active_op['take_profit'] - current_price) / current_price * 100:.2f}% a la meta", delta_color="off")
+            # Avoid ZeroDivisionError if current_price is 0
+            tp_pct = ((active_op['take_profit'] - current_price) / current_price * 100) if current_price > 0 else 0
+            c3.metric("Take Profit Estático", f"${active_op['take_profit']:,.2f}", f"{tp_pct:.2f}% a la meta", delta_color="off")
             
             st.markdown("---")
             col_a, col_b = st.columns(2)
             with col_a:
                 st.warning(f"**Ubicación de Stop Loss Crítico:** ${active_op['current_stop_loss']:,.2f}")
-                dist_sl_pct = (current_price - active_op['current_stop_loss']) / current_price * 100
+                dist_sl_pct = ((current_price - active_op['current_stop_loss']) / current_price * 100) if current_price > 0 else 0
                 st.markdown(f"*Distancia hasta el SL: **{dist_sl_pct:.2f}%***")
                 
-                new_sl = st.number_input("Actualizar Stop Loss (Trailing SL)", value=active_op['current_stop_loss'], step=100.0)
+                new_sl = st.number_input("Actualizar Stop Loss (Trailing SL)", value=float(active_op['current_stop_loss']), step=100.0)
                 if st.button("Actualizar SL en BBDD"):
                     update_stop_loss(active_op['id'], new_sl)
                     st.success("Stop Loss actualizado.")
                     st.rerun()
                 
                 # Manejo simple de SL y TP
-                if current_price <= active_op['current_stop_loss']:
-                    st.error("🚨 CRÍTICO: El precio cruzó el nivel de Stop Loss. Operación liquidada preventivamente.")
-                    close_operation(active_op['id'], current_price, 'STOP_LOSS_HIT')
-                    st.rerun()
-                elif current_price >= active_op['take_profit']:
-                    st.success("🎯 OBJETIVO ALCANZADO: El precio tocó el Take Profit. Operación finalizada exitosamente.")
-                    close_operation(active_op['id'], current_price, 'TAKE_PROFIT_HIT')
-                    st.rerun()
+                if connected and prob_res:
+                    if current_price <= active_op['current_stop_loss']:
+                        st.error("🚨 CRÍTICO: El precio cruzó el nivel de Stop Loss. Operación liquidada preventivamente.")
+                        close_operation(active_op['id'], current_price, 'STOP_LOSS_HIT')
+                        st.session_state.refresh_counter += 1
+                    elif current_price >= active_op['take_profit']:
+                        st.success("🎯 OBJETIVO ALCANZADO: El precio tocó el Take Profit. Operación finalizada exitosamente.")
+                        close_operation(active_op['id'], current_price, 'TAKE_PROFIT_HIT')
+                        st.session_state.refresh_counter += 1
 
             with col_b:
-                st.info(f"**Probabilidad Estimada de Éxito Actualizada:** {prob_res['prob_up']:.1f}%")
+                st.info(f"**Probabilidad Estimada de Éxito Actualizada:** {current_prob:.1f}%")
                 pnl_actual = (current_price - active_op['entry_price']) / active_op['entry_price'] * 100
                 st.metric("PnL Flotante Aprox.", f"{pnl_actual:.2f}%")
                 
                 with st.form("close_operation_form"):
                     st.markdown("### 🏛️ Reflexión Final (Génesis)")
                     st.markdown("Cerrar prematuramente altera la esperanza matemática. ¿Por qué cierras hoy?")
-                    reflection_close = st.text_area("Motivo del cierre:", placeholder="Siento miedo irracional, o veo una debilidad estructural...")
+                    reflection_close = st.text_area("Motivo del cierre:", placeholder="Siento miedo irracional, o veo una debilidad estructural...", key="reflection_close")
                     
                     if st.form_submit_button("Cerrar Operación Manualmente AHORA", type="primary", use_container_width=True):
                         close_operation(active_op['id'], current_price, 'MANUAL_CLOSE')
@@ -700,11 +715,13 @@ def main():
         """)
 
     # 5. Polling Asíncrono Liviano
-    auto_refresh = st.sidebar.checkbox("Activar Polling Universal (15s)", value=True)
+    st.sidebar.markdown("### ⏱️ Configuración de Red")
+    poll_freq = st.sidebar.slider("Frecuencia de Polling (segundos)", 15, 120, 60, help="Aumenta para darte tiempo extra para redactar reflexiones sin refrescos abruptos.")
+    auto_refresh = st.sidebar.checkbox("Activar Polling", value=True)
     
     if auto_refresh:
-        st.sidebar.success("⏳ Motor de polling subscrito y observando...")
-        time.sleep(15)
+        st.sidebar.success(f"⏳ Motor de polling subscrito y observando cada {poll_freq}s...")
+        time.sleep(poll_freq)
         st.session_state.refresh_counter += 1
         st.rerun()
 
