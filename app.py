@@ -247,9 +247,10 @@ def main():
 
     with tabs[0]:
         st.markdown("""
-        <div style="display: flex; align-items: center; margin-bottom: 20px;">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/4/46/Bitcoin.svg" width="50" style="margin-right: 15px;"/>
-            <h2 style="margin: 0; padding: 0;">Dashboard Principal</h2>
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 40px; padding: 40px 20px; background: radial-gradient(circle, rgba(30,41,59,1) 0%, rgba(11,14,20,1) 100%); border-radius: 16px; border: 1px solid #334155; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/4/46/Bitcoin.svg" width="140" style="margin-bottom: 25px; filter: drop-shadow(0 0 25px rgba(247,147,26,0.5));"/>
+            <h1 style="margin: 0; padding: 0; font-size: 3em; font-weight: 800; background: -webkit-linear-gradient(45deg, #f7931a, #fcd34d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0px 2px 4px rgba(0,0,0,0.5);">BITCOIN TERMINAL</h1>
+            <p style="color: #94a3b8; margin-top: 15px; font-size: 1.25em; letter-spacing: 2px; font-weight: 600; text-transform: uppercase;">Dashboard Principal Autónomo</p>
         </div>
         """, unsafe_allow_html=True)
         if connected and prob_res:
@@ -304,11 +305,11 @@ def main():
 
     with tabs[1]:
         st.header("Análisis Técnico Integrado")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.plotly_chart(render_chart(data_1d, "Diario (1D) con Bandas Bollinger"), use_container_width=True)
-        with col2:
-            st.plotly_chart(render_chart(data_4h, "Intradía (4H)"), use_container_width=True)
+        
+        # Display large 1D chart
+        fig_1d = render_chart(data_1d, "Análisis Diario (1D) Principal")
+        fig_1d.update_layout(height=700) # Increase chart height for visibility
+        st.plotly_chart(fig_1d, use_container_width=True)
             
         if connected and prob_res:
             st.markdown("### 📊 Proyecciones Densidad Monte Carlo (GBM)")
