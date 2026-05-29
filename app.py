@@ -232,7 +232,7 @@ def main():
         st.markdown(f"""
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 40px; padding: 40px 20px; background: radial-gradient(circle, rgba(30,41,59,1) 0%, rgba(11,14,20,1) 100%); border-radius: 16px; border: 1px solid #334155; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);">
             <img src="{logo_url}" width="140" style="margin-bottom: 25px; filter: drop-shadow(0 0 25px {logo_shadow});"/>
-            <h1 style="margin: 0; padding: 0; font-size: 3em; font-weight: 800; background: {title_gradient}; -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0px 2px 4px rgba(0,0,0,0.5);">{asset_title} TERMINAL</h1>
+            <h1 style="margin: 0; padding: 0; font-size: 3.5em; font-weight: 900; background: {title_gradient}; -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -1px;">{asset_title} TERMINAL</h1>
             <p style="color: #94a3b8; margin-top: 15px; font-size: 1.25em; letter-spacing: 2px; font-weight: 600; text-transform: uppercase;">Dashboard Principal Autónomo</p>
         </div>
         """, unsafe_allow_html=True)
