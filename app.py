@@ -40,18 +40,18 @@ init_db()
 
 # 3. Caché de extracción y cálculo de indicadores técnicos
 @st.cache_data(ttl=15, show_spinner=False)
-def fetch_and_process_data(_refresh_counter):
-    data_1d = fetch_data('BTC/USD', '1d', limit=250)
-    data_4h = fetch_data('BTC/USD', '4h', limit=250)
+def fetch_and_process_data(symbol, _refresh_counter):
+    data_1d = fetch_data(symbol, '1d', limit=250)
+    data_4h = fetch_data(symbol, '4h', limit=250)
     
     analyst = Analyst()
     if data_1d is not None and not data_1d.empty:
         data_1d = analyst.calculate_indicators(data_1d)
-        save_indicators('BTC/USD', '1d', data_1d.iloc[-1])
+        save_indicators(symbol, '1d', data_1d.iloc[-1])
         
     if data_4h is not None and not data_4h.empty:
         data_4h = analyst.calculate_indicators(data_4h)
-        save_indicators('BTC/USD', '4h', data_4h.iloc[-1])
+        save_indicators(symbol, '4h', data_4h.iloc[-1])
         
     return data_1d, data_4h
 
@@ -159,36 +159,6 @@ def render_chart(df, title, show_indicators=True):
     )
     return fig
 
-def render_mc_paths(paths, current_price, dates, title="Simulaciones Estocásticas (GBM)"):
-    fig = go.Figure()
-    num_lines = min(200, paths.shape[1])
-    
-    # Simular fechas futuras
-    freq = pd.Timedelta(days=1)
-    future_dates = [dates.iloc[-1] + freq * i for i in range(paths.shape[0])]
-    
-    # Dibujar trayectorias aleatorias (Background)
-    for i in range(num_lines):
-        fig.add_trace(go.Scatter(x=future_dates, y=paths[:, i], mode='lines', 
-                                 line=dict(color='rgba(56, 189, 248, 0.03)', width=1), 
-                                 hoverinfo='skip', showlegend=False))
-                                 
-    # Dibujar la Trayectoria Promedio
-    fig.add_trace(go.Scatter(x=future_dates, y=paths.mean(axis=1), mode='lines', 
-                             line=dict(color='#eab308', width=3), name='Trayectoria Media Esperada'))
-                             
-    fig.add_hline(y=current_price, line_dash='dash', line_color='#22c55e', annotation_text='Precio Actual')
-    
-    fig.update_layout(
-        title=title,
-        template='plotly_dark',
-        height=400,
-        margin=dict(l=10, r=10, t=40, b=10),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
-    )
-    return fig
-
 def main():
     st.markdown("""
         <style>
@@ -221,6 +191,9 @@ def main():
     ])
     
     # Sidebar
+    st.sidebar.markdown("### ⚙️ Selector de Activos")
+    selected_symbol = st.sidebar.selectbox("Criptomoneda", ["BTC/USD", "ETH/USD"], index=0)
+    
     st.sidebar.markdown("### ⚙️ Control de Sistema")
     st.session_state.safe_mode = st.sidebar.toggle("🛡️ Safe Mode (Máxima Estabilidad)", value=False, help="Fuerza cálculos rápidos y evita bloqueos UI si el hardware remoto falla.")
     
@@ -230,7 +203,7 @@ def main():
     if st.session_state.safe_mode:
         st.sidebar.warning("Safe Mode Activo: Precisión capada a 'Rápido'.")
     
-    data_1d, data_4h = fetch_and_process_data(st.session_state.refresh_counter)
+    data_1d, data_4h = fetch_and_process_data(selected_symbol, st.session_state.refresh_counter)
     connected = data_1d is not None and data_4h is not None
 
     prob_res = None
@@ -246,10 +219,20 @@ def main():
                 status.update(label="Fallo en la Simulación Estocástica", state="error", expanded=False)
 
     with tabs[0]:
-        st.markdown("""
+        logo_url = "https://upload.wikimedia.org/wikipedia/commons/4/46/Bitcoin.svg"
+        logo_shadow = "rgba(247,147,26,0.5)"
+        title_gradient = "-webkit-linear-gradient(45deg, #f7931a, #fcd34d)"
+        asset_title = "BITCOIN"
+        if selected_symbol == "ETH/USD":
+            logo_url = "https://upload.wikimedia.org/wikipedia/commons/0/05/Ethereum_logo_2014.svg"
+            logo_shadow = "rgba(98,126,234,0.5)"
+            title_gradient = "-webkit-linear-gradient(45deg, #627eea, #9ca3af)"
+            asset_title = "ETHEREUM"
+            
+        st.markdown(f"""
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 40px; padding: 40px 20px; background: radial-gradient(circle, rgba(30,41,59,1) 0%, rgba(11,14,20,1) 100%); border-radius: 16px; border: 1px solid #334155; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/4/46/Bitcoin.svg" width="140" style="margin-bottom: 25px; filter: drop-shadow(0 0 25px rgba(247,147,26,0.5));"/>
-            <h1 style="margin: 0; padding: 0; font-size: 3em; font-weight: 800; background: -webkit-linear-gradient(45deg, #f7931a, #fcd34d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0px 2px 4px rgba(0,0,0,0.5);">BITCOIN TERMINAL</h1>
+            <img src="{logo_url}" width="140" style="margin-bottom: 25px; filter: drop-shadow(0 0 25px {logo_shadow});"/>
+            <h1 style="margin: 0; padding: 0; font-size: 3em; font-weight: 800; background: {title_gradient}; -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0px 2px 4px rgba(0,0,0,0.5);">{asset_title} TERMINAL</h1>
             <p style="color: #94a3b8; margin-top: 15px; font-size: 1.25em; letter-spacing: 2px; font-weight: 600; text-transform: uppercase;">Dashboard Principal Autónomo</p>
         </div>
         """, unsafe_allow_html=True)
@@ -262,7 +245,7 @@ def main():
             
             # Info básica
             col1, col2, col3, col4 = st.columns(4)
-            col1.metric("BTC/USD", f"${current_price:,.2f}", f"{price_change_pct:.2f}%")
+            col1.metric(selected_symbol, f"${current_price:,.2f}", f"{price_change_pct:.2f}%")
             col2.metric("Volatilidad (GARCH)", f"{prob_res['garch_vol']:.2f}%")
             col3.metric("RSI (14)", f"{latest['RSI_14']:.2f}")
             col4.metric(" MACD", f"{latest['MACD']:.2f}")
@@ -310,11 +293,6 @@ def main():
         fig_1d = render_chart(data_1d, "Análisis Diario (1D) Principal")
         fig_1d.update_layout(height=700) # Increase chart height for visibility
         st.plotly_chart(fig_1d, use_container_width=True)
-            
-        if connected and prob_res:
-            st.markdown("### 📊 Proyecciones Densidad Monte Carlo (GBM)")
-            st.markdown(f"> *Se muestra una sub-muestra gráfica ({min(200, prob_res['paths'].shape[1])} trayectorias) del total calculado en la nube ({prob_res['paths'].shape[1]:,} simulaciones).*")
-            st.plotly_chart(render_mc_paths(prob_res['paths'], prob_res['current_price'], data_1d['timestamp']), use_container_width=True)
 
     with tabs[2]:
         st.header("Módulo Complejo de Agentes")
@@ -383,9 +361,9 @@ def main():
                     submit_rej = colB.form_submit_button("❌ Rechazar Sugerencia", type="secondary", use_container_width=True)
                     
                     if submit_acc:
-                        rec_id = save_recommendation("BTC/USD", recommendation['entry_price'], recommendation['stop_loss'], recommendation['take_profit'], recommendation['position_size_pct'], recommendation['confidence'], recommendation['reason'])
+                        rec_id = save_recommendation(selected_symbol, recommendation['entry_price'], recommendation['stop_loss'], recommendation['take_profit'], recommendation['position_size_pct'], recommendation['confidence'], recommendation['reason'])
                         update_recommendation_status(rec_id, 'ACCEPTED')
-                        open_operation(rec_id, "BTC/USD", recommendation['entry_price'], recommendation['stop_loss'], recommendation['take_profit'], recommendation['position_size_pct'])
+                        open_operation(rec_id, selected_symbol, recommendation['entry_price'], recommendation['stop_loss'], recommendation['take_profit'], recommendation['position_size_pct'])
                         if reflection:
                             save_reflection(rec_id, 'RECOMMENDATION_ACCEPTED', reflection)
                         log_to_db("INFO", f"Operación LONG Aprobada y abierta en DB.")
@@ -393,7 +371,7 @@ def main():
                         st.rerun()
                         
                     if submit_rej:
-                        rec_id = save_recommendation("BTC/USD", recommendation['entry_price'], recommendation['stop_loss'], recommendation['take_profit'], recommendation['position_size_pct'], recommendation['confidence'], recommendation['reason'])
+                        rec_id = save_recommendation(selected_symbol, recommendation['entry_price'], recommendation['stop_loss'], recommendation['take_profit'], recommendation['position_size_pct'], recommendation['confidence'], recommendation['reason'])
                         update_recommendation_status(rec_id, 'REJECTED')
                         if reflection:
                             save_reflection(rec_id, 'RECOMMENDATION_REJECTED', reflection)
