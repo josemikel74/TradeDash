@@ -546,39 +546,83 @@ def main():
             st.error(f"Error procesando historial: {e}")
 
     with tabs[5]:
-        st.header("Memoria y Evolución: Capa Cognitiva de Auto-Aprendizaje")
-        st.markdown("Esta sección consolida el **Rendimiento del Algoritmo**, el **Registro Forense de Decisiones** y la **Curva de Aprendizaje** o adaptación iterativa del sistema.")
+        st.markdown("""
+        <div style="margin-bottom: 30px; padding: 25px; background: linear-gradient(135deg, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.9) 100%); border-radius: 12px; border-left: 4px solid #8b5cf6; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+            <h2 style="margin:0; font-weight: 700; color: #e2e8f0; font-size: 1.8em; display: flex; align-items: center; gap: 10px;">
+                🧠 Memoria y Evolución: Capa Cognitiva
+            </h2>
+            <p style="color: #94a3b8; margin: 10px 0 0 0; font-size: 1.1em; line-height: 1.5;">
+                Motor de adaptación y auto-aprendizaje. Cada hito y decisión del sistema genera vectores de experiencia, consolidando calibradores estocásticos que ajustan los hiperparámetros de las simulaciones y el sesgo de confirmación.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         
+        learning_metrics = get_all_learning_metrics()
+        recommendations = get_all_recommendations()
+        reflections = get_all_reflections()
+        
+        if not learning_metrics.empty or not recommendations.empty:
+            m1, m2, m3, m4 = st.columns(4)
+            latest_brier = f"{learning_metrics['brier_score'].iloc[-1]:.3f}" if not learning_metrics.empty else "N/A"
+            latest_cal = f"{learning_metrics['calibration_error'].iloc[-1]:.3f}" if not learning_metrics.empty else "N/A"
+            avg_conf = f"{recommendations['confidence'].mean():.1f}%" if not recommendations.empty else "N/A"
+            total_refl = len(reflections)
+            
+            m1.metric(label="Último Brier (Precisión)", value=latest_brier)
+            m2.metric(label="Error Calibración", value=latest_cal)
+            m3.metric(label="Confianza Histórica", value=avg_conf)
+            m4.metric(label="Reflexiones Captadas", value=total_refl)
+            st.divider()
+
         mc1, mc2 = st.columns(2)
         with mc1:
-            st.subheader("Rendimiento y Tolerancia del Algoritmo")
-            learning_metrics = get_all_learning_metrics()
+            st.subheader("Rendimiento Computacional: Brier & Calibración")
             if not learning_metrics.empty:
                 fig_lm = make_subplots(specs=[[{"secondary_y": True}]])
-                fig_lm.add_trace(go.Scatter(x=learning_metrics['timestamp'], y=learning_metrics['brier_score'], mode='lines+markers', name='Brier Score', line=dict(color='#ef4444')), secondary_y=False)
-                fig_lm.add_trace(go.Scatter(x=learning_metrics['timestamp'], y=learning_metrics['calibration_error'], mode='lines+markers', name='Error de Calibración', line=dict(color='#3b82f6')), secondary_y=True)
-                fig_lm.update_layout(title="Curva de Aprendizaje: Brier Score vs Calibración", template="plotly_dark", height=400, margin=dict(l=0, r=0, t=50, b=0))
+                fig_lm.add_trace(go.Scatter(x=learning_metrics['timestamp'], y=learning_metrics['brier_score'], mode='lines+markers', name='Brier Score', line=dict(color='#ef4444', width=3), marker=dict(size=8)), secondary_y=False)
+                fig_lm.add_trace(go.Scatter(x=learning_metrics['timestamp'], y=learning_metrics['calibration_error'], mode='lines+markers', name='Error de Calibración', line=dict(color='#3b82f6', width=3, dash='dot'), marker=dict(size=8)), secondary_y=True)
+                fig_lm.update_layout(
+                    title="<span style='color: #ef4444;'>█</span> Brier Score vs <span style='color: #3b82f6;'>█</span> Calibración",title_x=0.5,
+                    template="plotly_dark", height=400, margin=dict(l=10, r=10, t=50, b=10),
+                    plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
                 st.plotly_chart(fig_lm, use_container_width=True)
             else:
-                st.info("Sin datos suficientes. El motor de aprendizaje requiere iteraciones.")
+                st.info("No hay iteraciones para renderizar curvas de rendimiento.")
                 
         with mc2:
-            st.subheader("Curva de Aprendizaje del Sistema")
-            recommendations = get_all_recommendations()
+            st.subheader("Curva de Aprendizaje: Convergencia de Confianza")
             if not recommendations.empty:
                 fig_confidence = go.Figure()
-                fig_confidence.add_trace(go.Scatter(x=recommendations['timestamp'], y=recommendations['confidence'], mode='lines+markers', name='Confianza Algorítmica', marker=dict(color='#10b981')))
-                fig_confidence.update_layout(title="Evolución de Confianza en Recomendaciones", template="plotly_dark", height=400, margin=dict(l=0, r=0, t=50, b=0))
+                fig_confidence.add_trace(go.Scatter(x=recommendations['timestamp'], y=recommendations['confidence'], mode='lines+markers', name='Confianza Algorítmica', line=dict(color='#10b981', width=3), marker=dict(size=8, color='#059669'), fill='tozeroy', fillcolor='rgba(16, 185, 129, 0.1)'))
+                fig_confidence.update_layout(
+                    title="Evolución de Certeza en Proyecciones",title_x=0.5,
+                    template="plotly_dark", height=400, margin=dict(l=10, r=10, t=50, b=10),
+                    plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+                    yaxis=dict(range=[0, 100]),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
                 st.plotly_chart(fig_confidence, use_container_width=True)
             else:
-                st.info("No hay recomendaciones generadas para graficar confianza algorítmica.")
+                st.info("Sin simulaciones concluidas para visualizar convergencia.")
                 
-        st.subheader("Registro Forense de Decisiones")
-        reflections = get_all_reflections()
+        st.markdown("### 🔎 Registro Forense de Decisiones (Deep-Log)")
         if not reflections.empty:
-            st.dataframe(reflections[['timestamp', 'type', 'reflection']], use_container_width=True, hide_index=True)
+            styled_reflections = reflections[['timestamp', 'type', 'reflection']].copy()
+            styled_reflections.sort_values(by='timestamp', ascending=False, inplace=True)
+            st.dataframe(
+                styled_reflections, 
+                use_container_width=True, 
+                hide_index=True,
+                column_config={
+                    "timestamp": st.column_config.TextColumn("Marca de Tiempo"),
+                    "type": st.column_config.TextColumn("Naturaleza de Entidad"),
+                    "reflection": st.column_config.TextColumn("Resolución Metodológica"),
+                }
+            )
         else:
-            st.info("El sistema aún no tiene reflexiones metodológicas (forenses) registradas.")
+            st.warning("El motor forense aún no ha capturado dictámenes cognitivos.")
 
     with tabs[6]:
         st.header("Panel de Configuración de Sistema")
