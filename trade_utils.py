@@ -228,6 +228,24 @@ def get_latest_learning_metrics():
         return df.iloc[0].to_dict()
     return None
 
+def get_all_learning_metrics():
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query("SELECT * FROM learning_metrics ORDER BY id ASC", conn)
+    conn.close()
+    return df
+
+def get_all_reflections():
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query("SELECT * FROM user_reflections ORDER BY id DESC", conn)
+    conn.close()
+    return df
+
+def get_all_recommendations():
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query("SELECT * FROM recommendations ORDER BY id DESC", conn)
+    conn.close()
+    return df
+
 def save_reflection(related_id, rel_type, reflection):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()

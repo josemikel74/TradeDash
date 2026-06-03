@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import io
 try:
-    from trade_utils import fetch_data, init_db, log_to_db, save_indicators, save_recommendation, update_recommendation_status, open_operation, get_active_operation, close_operation, save_learning_metrics, get_latest_learning_metrics, update_stop_loss
+    from trade_utils import fetch_data, init_db, log_to_db, save_indicators, save_recommendation, update_recommendation_status, open_operation, get_active_operation, close_operation, save_learning_metrics, get_latest_learning_metrics, update_stop_loss, get_all_learning_metrics, get_all_reflections, get_all_recommendations
     try:
         from trade_utils import save_reflection
     except ImportError:
@@ -184,6 +184,7 @@ def main():
         "Agentes", 
         "Supervisor", 
         "Historial/Riesgo", 
+        "Memoria y Evolución",
         "Configuración", 
         "Operación en Curso",
         "Filosofía Génesis",
@@ -538,6 +539,41 @@ def main():
             st.error(f"Error procesando historial: {e}")
 
     with tabs[5]:
+        st.header("Memoria y Evolución: Capa Cognitiva de Auto-Aprendizaje")
+        st.markdown("Esta sección consolida el **Rendimiento del Algoritmo**, el **Registro Forense de Decisiones** y la **Curva de Aprendizaje** o adaptación iterativa del sistema.")
+        
+        mc1, mc2 = st.columns(2)
+        with mc1:
+            st.subheader("Rendimiento y Tolerancia del Algoritmo")
+            learning_metrics = get_all_learning_metrics()
+            if not learning_metrics.empty:
+                fig_lm = make_subplots(specs=[[{"secondary_y": True}]])
+                fig_lm.add_trace(go.Scatter(x=learning_metrics['timestamp'], y=learning_metrics['brier_score'], mode='lines+markers', name='Brier Score', line=dict(color='#ef4444')), secondary_y=False)
+                fig_lm.add_trace(go.Scatter(x=learning_metrics['timestamp'], y=learning_metrics['calibration_error'], mode='lines+markers', name='Error de Calibración', line=dict(color='#3b82f6')), secondary_y=True)
+                fig_lm.update_layout(title="Curva de Aprendizaje: Brier Score vs Calibración", template="plotly_dark", height=400, margin=dict(l=0, r=0, t=50, b=0))
+                st.plotly_chart(fig_lm, use_container_width=True)
+            else:
+                st.info("Sin datos suficientes. El motor de aprendizaje requiere iteraciones.")
+                
+        with mc2:
+            st.subheader("Curva de Aprendizaje del Sistema")
+            recommendations = get_all_recommendations()
+            if not recommendations.empty:
+                fig_confidence = go.Figure()
+                fig_confidence.add_trace(go.Scatter(x=recommendations['timestamp'], y=recommendations['confidence'], mode='lines+markers', name='Confianza Algorítmica', marker=dict(color='#10b981')))
+                fig_confidence.update_layout(title="Evolución de Confianza en Recomendaciones", template="plotly_dark", height=400, margin=dict(l=0, r=0, t=50, b=0))
+                st.plotly_chart(fig_confidence, use_container_width=True)
+            else:
+                st.info("No hay recomendaciones generadas para graficar confianza algorítmica.")
+                
+        st.subheader("Registro Forense de Decisiones")
+        reflections = get_all_reflections()
+        if not reflections.empty:
+            st.dataframe(reflections[['timestamp', 'type', 'reflection']], use_container_width=True, hide_index=True)
+        else:
+            st.info("El sistema aún no tiene reflexiones metodológicas (forenses) registradas.")
+
+    with tabs[6]:
         st.header("Panel de Configuración de Sistema")
         st.info("Utilice el entorno de la barra lateral (Sidebar) para conmutar la precisión del Motor Monte Carlo y el polling.")
         
@@ -580,7 +616,7 @@ def main():
                     else:
                         st.error("Error al intentar reiniciar contexto local.")
 
-    with tabs[6]:
+    with tabs[7]:
         st.header("Despacho Operacional")
         
         active_op = get_active_operation()
@@ -646,7 +682,7 @@ def main():
         else:
             st.info("🔴 No existe ninguna posición viva en curso. Dirigirse al Módulo de Agentes para observar señales activas.")
 
-    with tabs[7]:
+    with tabs[8]:
         st.header("Filosofía Génesis y Mentoría")
         st.markdown("""
         ### 🌱 El Manifiesto Génesis
@@ -673,7 +709,7 @@ def main():
         except Exception:
             st.info("El sistema de registro de mentoría está en espera.")
             
-    with tabs[8]:
+    with tabs[9]:
         st.header("📖 Acerca / Guía del Sistema")
         st.markdown("""
         ### Sistema Cuantitativo - Arquitectura Génesis (Fase 6)
