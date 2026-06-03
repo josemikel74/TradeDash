@@ -5,11 +5,18 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import io
 try:
-    from trade_utils import fetch_data, init_db, log_to_db, save_indicators, save_recommendation, update_recommendation_status, open_operation, get_active_operation, close_operation, save_learning_metrics, get_latest_learning_metrics, update_stop_loss, get_all_learning_metrics, get_all_reflections, get_all_recommendations
+    from trade_utils import fetch_data, init_db, log_to_db, save_indicators, save_recommendation, update_recommendation_status, open_operation, get_active_operation, close_operation, save_learning_metrics, get_latest_learning_metrics, update_stop_loss
     try:
         from trade_utils import save_reflection
     except ImportError:
         save_reflection = lambda *args: None
+        
+    try:
+        from trade_utils import get_all_learning_metrics, get_all_reflections, get_all_recommendations
+    except ImportError:
+        def get_all_learning_metrics(): import pandas as pd; return pd.DataFrame()
+        def get_all_reflections(): import pandas as pd; return pd.DataFrame()
+        def get_all_recommendations(): import pandas as pd; return pd.DataFrame()
 except Exception as e:
     st.error(f"Critical System Error importing trade_utils: {e}")
     st.stop()
