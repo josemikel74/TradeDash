@@ -515,7 +515,7 @@ def main():
         try:
             conn = sqlite3.connect('data/trading.db')
             ops = pd.read_sql_query("SELECT id, symbol, status, entry_price, close_price, pnl, timestamp, close_time FROM operations WHERE status != 'OPEN' ORDER BY id ASC", conn)
-            recs = pd.read_sql_query("SELECT id, timestamp, status, action, confidence, reason FROM recommendations ORDER BY id DESC LIMIT 50", conn)
+            recs = pd.read_sql_query("SELECT id, timestamp, status, symbol, confidence, reason FROM recommendations ORDER BY id DESC LIMIT 50", conn)
             all_ops = pd.read_sql_query("SELECT * FROM operations ORDER BY id DESC", conn)
             conn.close()
             
