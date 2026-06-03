@@ -390,6 +390,40 @@ def main():
             else:
                 st.warning(f"**Recomendación:** {recommendation['action']}")
                 st.markdown(f"**Razón:** {recommendation['reason']}")
+            
+            if not active_op:
+                curr_price = data_1d.iloc[-1]['close'] if (data_1d is not None and not data_1d.empty) else 0.0
+                st.markdown("---")
+                with st.expander("🛠️ Forzar Entrada Manual (Bypass del Agente)"):
+                    st.warning("⚠️ **ALERTA DE RIESGO SEVERO** ⚠️\n\nEstá a punto de saltarse el consenso cuantitativo del enjambre de agentes y el motor estocástico. Esto incrementa exponencialmente el riesgo de sesgo cognitivo, overtrading y ruina sistémica. El registro forense (Deep-Log) auditará esta decisión metodológica en su contra si no existe justificación sólida.")
+                    
+                    with st.form("manual_entry_form"):
+                        colM1, colM2 = st.columns(2)
+                        manual_entry = colM1.number_input("Precio Entrada Manual", value=float(curr_price), min_value=0.0)
+                        manual_sl = colM2.number_input("Stop Loss Riguroso", value=float(curr_price * 0.95), min_value=0.0)
+                        
+                        colM3, colM4 = st.columns(2)
+                        manual_tp = colM3.number_input("Take Profit", value=float(curr_price * 1.05), min_value=0.0)
+                        manual_size = colM4.number_input("Tamaño Posición (%)", value=1.0, min_value=0.1, max_value=20.0, step=0.1)
+                        
+                        manual_reason = st.text_area("Justificación Obligatoria para Auditoría", placeholder="Ej. Divergencia no detectada, confirmación institucional vía off-chain...")
+                        
+                        submit_manual = st.form_submit_button("☢️ ASUMIR RIESGO: Ejecutar Entrada Manual", type="primary", use_container_width=True)
+                        
+                        if submit_manual:
+                            if not manual_reason or len(manual_reason) < 10:
+                                st.error("❌ El sistema bloquea la entrada. Es obligatoria una justificación metodológica clara para el bypass.")
+                            elif manual_sl >= manual_entry:
+                                st.error("❌ El Stop Loss debe ser inferior al precio de entrada.")
+                            else:
+                                rec_id = save_recommendation(selected_symbol, manual_entry, manual_sl, manual_tp, manual_size, 0.0, f"BYPASS MANUAL: {manual_reason}")
+                                update_recommendation_status(rec_id, 'ACCEPTED_MANUAL')
+                                open_operation(rec_id, selected_symbol, manual_entry, manual_sl, manual_tp, manual_size)
+                                save_reflection(rec_id, 'MANUAL_BYPASS', manual_reason)
+                                log_to_db("WARNING", "El usuario ha forzado una operación manual, evadiendo la recomendación del sistema.")
+                                st.success("Operación manual activada bajo su propia responsabilidad.")
+                                st.session_state.refresh_counter += 1
+                                st.rerun()
 
     with tabs[3]:
         st.header("Supervisor Técnico Universal")
