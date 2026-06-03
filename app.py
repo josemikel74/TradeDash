@@ -192,6 +192,7 @@ def main():
         "Supervisor", 
         "Historial/Riesgo", 
         "Memoria y Evolución",
+        "Gestión de Datos y Calibración de Memoria",
         "Configuración", 
         "Operación en Curso",
         "Filosofía Génesis",
@@ -625,6 +626,43 @@ def main():
             st.warning("El motor forense aún no ha capturado dictámenes cognitivos.")
 
     with tabs[6]:
+        st.header("Gestión de Datos y Calibración de Memoria")
+        st.markdown("Esta sección gestiona la memoria de: **Agentes**, **Historial/Riesgo**, **Memoria y Evolución**, **Configuración** y **Operación en Curso**.")
+        st.info("Preservar la integridad de los datos es crítico para el auto-aprendizaje del sistema.")
+        
+        col_dl, col_ul = st.columns(2)
+        with col_dl:
+            st.subheader("Descarga Registro de Memoria")
+            st.markdown("Genera un backup completo de la memoria cognitiva de la terminal.")
+            try:
+                with open('data/trading.db', 'rb') as f:
+                    st.download_button(
+                        label="⬇️ Descargar DB de Memoria (SQLite)",
+                        data=f,
+                        file_name="genesis_memory_backup.db",
+                        mime="application/x-sqlite3",
+                        use_container_width=True
+                    )
+            except Exception as e:
+                st.error("No se pudo preparar la base de datos para la descarga.")
+        
+        with col_ul:
+            st.subheader("Restaurar e Inyectar Memoria")
+            st.markdown("Sube una versión previa de la base de datos `genesis_memory_backup.db` para restaurar e inyectar historial y parámetros calibrados.")
+            uploaded_file = st.file_uploader("Subir Backup de Memoria", type=['db', 'sqlite', 'sqlite3'])
+            if uploaded_file is not None:
+                if st.button("⚠️ Confirmar Inyección de Memoria", use_container_width=True):
+                    try:
+                        with open('data/trading.db', 'wb') as f:
+                            f.write(uploaded_file.getbuffer())
+                        st.success("Memoria inyectada y calibrada con éxito. Reiniciando subsistemas...")
+                        if 'refresh_counter' in st.session_state:
+                            st.session_state.refresh_counter += 1
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error crítico al inyectar memoria: {e}")
+
+    with tabs[7]:
         st.header("Panel de Configuración de Sistema")
         st.info("Utilice el entorno de la barra lateral (Sidebar) para conmutar la precisión del Motor Monte Carlo y el polling.")
         
@@ -667,7 +705,7 @@ def main():
                     else:
                         st.error("Error al intentar reiniciar contexto local.")
 
-    with tabs[7]:
+    with tabs[8]:
         st.header("Despacho Operacional")
         
         active_op = get_active_operation()
@@ -733,7 +771,7 @@ def main():
         else:
             st.info("🔴 No existe ninguna posición viva en curso. Dirigirse al Módulo de Agentes para observar señales activas.")
 
-    with tabs[8]:
+    with tabs[9]:
         st.header("Filosofía Génesis y Mentoría")
         st.markdown("""
         ### 🌱 El Manifiesto Génesis
@@ -760,7 +798,7 @@ def main():
         except Exception:
             st.info("El sistema de registro de mentoría está en espera.")
             
-    with tabs[9]:
+    with tabs[10]:
         st.header("📖 Acerca / Guía del Sistema")
         st.markdown("""
         ### Sistema Cuantitativo - Arquitectura Génesis (Fase 6)
