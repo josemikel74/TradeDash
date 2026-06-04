@@ -683,16 +683,35 @@ def main():
         with col_ul:
             st.subheader("Restaurar e Inyectar Memoria")
             st.markdown("Sube una versión previa de la base de datos `genesis_memory_backup.db` para restaurar e inyectar historial y parámetros calibrados.")
+            
+            if 'memory_injection_success' in st.session_state and st.session_state.memory_injection_success:
+                st.success("✅ " + st.session_state.memory_injection_msg)
+                st.session_state.memory_injection_success = False
+                
             uploaded_file = st.file_uploader("Subir Backup de Memoria", type=['db', 'sqlite', 'sqlite3'])
             if uploaded_file is not None:
                 if st.button("⚠️ Confirmar Inyección de Memoria", use_container_width=True):
                     file_buffer = uploaded_file.getbuffer()
                     success, message = inject_memory_db(file_buffer)
                     if success:
-                        st.success(f"{message} Reiniciando subsistemas...")
+                        # Obtener algunas métricas de confirmación tras cargar la BBDD nueva
+                        stats_msg = "Memoria inyectada."
+                        try:
+                            import sqlite3, pandas as pd
+                            conn = sqlite3.connect('data/trading.db')
+                            ops_count = pd.read_sql_query("SELECT COUNT(*) FROM operations", conn).iloc[0,0]
+                            recs_count = pd.read_sql_query("SELECT COUNT(*) FROM recommendations", conn).iloc[0,0]
+                            conn.close()
+                            stats_msg = f"Memoria inyectada con éxito. Registros recuperados: {ops_count} Operaciones, {recs_count} Recomendaciones."
+                        except Exception:
+                            pass
+                            
+                        st.session_state.memory_injection_success = True
+                        st.session_state.memory_injection_msg = stats_msg
+                        
                         if 'refresh_counter' in st.session_state:
                             st.session_state.refresh_counter += 1
-                        time.sleep(1) # Give it a moment before rerun
+                        time.sleep(0.5) # Give it a moment before rerun
                         st.rerun()
                     else:
                         st.error(f"Error crítico al inyectar memoria: {message}")
