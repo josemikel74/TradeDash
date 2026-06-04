@@ -697,7 +697,7 @@ def main():
 
     with tabs[4]:
         st.header("Gestión de Datos y Calibración de Memoria")
-        st.markdown("Esta sección gestiona la memoria de: **Agentes**, **Historial/Riesgo**, **Memoria y Evolución**, **Configuración** y **Operación en Curso**.")
+        st.markdown("Esta sección gestiona la memoria de: **Agentes**, **Supervisor Técnico Universal**, **Estado de Auto-Aprendizaje (Laboratorio Vivo)**, **Historial Interdepartamental y Auditoría de Riesgo**, **Historial/Riesgo**, **Memoria y Evolución**, **Configuración** y **Operación en Curso**.")
         st.info("Preservar la integridad de los datos es crítico para el auto-aprendizaje del sistema.")
         
         col_dl, col_ul = st.columns(2)
@@ -733,7 +733,6 @@ def main():
                         # Obtener algunas métricas de confirmación tras cargar la BBDD nueva
                         stats_msg = "Memoria inyectada."
                         try:
-                            import sqlite3, pandas as pd
                             with sqlite3.connect('data/trading.db', timeout=20, check_same_thread=False) as conn:
                                 ops_count = pd.read_sql_query("SELECT COUNT(*) FROM operations", conn).iloc[0,0]
                                 recs_count = pd.read_sql_query("SELECT COUNT(*) FROM recommendations", conn).iloc[0,0]
