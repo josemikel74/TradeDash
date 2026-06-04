@@ -224,8 +224,6 @@ def main():
         "Dashboard Principal", 
         "Gráficos Interactivos", 
         "Agentes", 
-        "Supervisor", 
-        "Historial/Riesgo", 
         "Memoria y Evolución",
         "Gestión de Datos y Calibración de Memoria",
         "Configuración", 
@@ -460,7 +458,7 @@ def main():
                                 st.session_state.refresh_counter += 1
                                 st.rerun()
 
-    with tabs[3]:
+    with tabs[4]:
         st.header("Supervisor Técnico Universal")
         
         status_col, btn_col = st.columns([3, 1])
@@ -618,7 +616,7 @@ def main():
         except Exception as e:
             st.error(f"Error procesando historial: {e}")
 
-    with tabs[5]:
+    with tabs[3]:
         st.markdown("""
         <div style="margin-bottom: 30px; padding: 25px; background: linear-gradient(135deg, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.9) 100%); border-radius: 12px; border-left: 4px solid #8b5cf6; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
             <h2 style="margin:0; font-weight: 700; color: #e2e8f0; font-size: 1.8em; display: flex; align-items: center; gap: 10px;">
@@ -697,7 +695,7 @@ def main():
         else:
             st.warning("El motor forense aún no ha capturado dictámenes cognitivos.")
 
-    with tabs[6]:
+    with tabs[4]:
         st.header("Gestión de Datos y Calibración de Memoria")
         st.markdown("Esta sección gestiona la memoria de: **Agentes**, **Historial/Riesgo**, **Memoria y Evolución**, **Configuración** y **Operación en Curso**.")
         st.info("Preservar la integridad de los datos es crítico para el auto-aprendizaje del sistema.")
@@ -753,7 +751,7 @@ def main():
                     else:
                         st.error(f"Error crítico al inyectar memoria: {message}")
 
-    with tabs[7]:
+    with tabs[5]:
         st.header("Panel de Configuración de Sistema")
         st.info("Utilice el entorno de la barra lateral (Sidebar) para conmutar la precisión del Motor Monte Carlo y el polling.")
         
@@ -796,7 +794,7 @@ def main():
                     else:
                         st.error("Error al intentar reiniciar contexto local.")
 
-    with tabs[8]:
+    with tabs[6]:
         st.header("Despacho Operacional")
         
         active_op = get_active_operation()
@@ -862,7 +860,7 @@ def main():
         else:
             st.info("🔴 No existe ninguna posición viva en curso. Dirigirse al Módulo de Agentes para observar señales activas.")
 
-    with tabs[9]:
+    with tabs[7]:
         st.header("Filosofía Génesis y Mentoría")
         st.markdown("""
         ### 🌱 El Manifiesto Génesis
@@ -888,7 +886,7 @@ def main():
         except Exception:
             st.info("El sistema de registro de mentoría está en espera.")
             
-    with tabs[10]:
+    with tabs[8]:
         st.header("📖 Acerca / Guía del Sistema")
         st.markdown("""
         ### Sistema Cuantitativo - Arquitectura Génesis (Fase 6)
