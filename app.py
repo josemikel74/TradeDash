@@ -471,9 +471,9 @@ def main():
             
             db_conn_ok = True
             try:
-                db_tst = sqlite3.connect('data/trading.db')
-                db_tst.close()
-            except:
+                with sqlite3.connect('data/trading.db', timeout=20, check_same_thread=False) as db_tst:
+                    db_tst.execute("SELECT 1")
+            except Exception:
                 db_conn_ok = False
             
             st.markdown(f"**Gestor SQLite Local:** {'🟢 Operativo' if db_conn_ok else '🔴 Corrupción en Base de Datos'}")
@@ -514,24 +514,25 @@ def main():
         log_col, clear_col = st.columns([4, 1])
         with clear_col:
             if st.button("Limpiar Logs", use_container_width=True):
-                conn = sqlite3.connect('data/trading.db')
-                conn.execute("DELETE FROM system_logs")
-                conn.commit()
-                conn.close()
+                with sqlite3.connect('data/trading.db', timeout=20, check_same_thread=False) as conn:
+                    conn.execute("DELETE FROM system_logs")
+                    conn.commit()
                 st.rerun()
                 
         try:
-            conn = sqlite3.connect('data/trading.db')
-            # Fetch all for filtering
-            logs_df = pd.read_sql_query("SELECT timestamp, level, message FROM system_logs ORDER BY id DESC LIMIT 100", conn)
-            conn.close()
+            with sqlite3.connect('data/trading.db', timeout=20, check_same_thread=False) as conn:
+                logs_df = pd.read_sql_query("SELECT * FROM system_logs ORDER BY id DESC LIMIT 100", conn)
             
             filter_level = st.selectbox("Filtrar por nivel:", ["TODOS", "INFO", "WARNING", "ERROR"])
-            if filter_level != "TODOS":
+            if 'level' in logs_df.columns and filter_level != "TODOS":
                 logs_df = logs_df[logs_df['level'] == filter_level]
                 
+            cols_to_show = [c for c in ['timestamp', 'level', 'message'] if c in logs_df.columns]
+            if not cols_to_show:
+                cols_to_show = logs_df.columns.tolist()
+                
             st.dataframe(
-                logs_df, 
+                logs_df[cols_to_show] if not logs_df.empty else logs_df, 
                 use_container_width=True, 
                 hide_index=True,
                 column_config={
@@ -539,20 +540,22 @@ def main():
                         "Nivel",
                         help="Nivel de severidad"
                     )
-                }
+                } if 'level' in logs_df.columns else None
             )
         except Exception as e:
-            st.error("No se pudo cargar la base SQLite interna.")
+            st.error(f"No se pudo cargar la base SQLite interna: {e}")
 
     with tabs[4]:
         st.header("Historial Interdepartamental y Auditoría de Riesgo")
         
         try:
-            conn = sqlite3.connect('data/trading.db')
-            ops = pd.read_sql_query("SELECT id, symbol, status, entry_price, close_price, pnl, timestamp, close_time FROM operations WHERE status != 'OPEN' ORDER BY id ASC", conn)
-            recs = pd.read_sql_query("SELECT id, timestamp, status, symbol, confidence, reason FROM recommendations ORDER BY id DESC LIMIT 50", conn)
-            all_ops = pd.read_sql_query("SELECT * FROM operations ORDER BY id DESC", conn)
-            conn.close()
+            with sqlite3.connect('data/trading.db', timeout=20, check_same_thread=False) as conn:
+                ops = pd.read_sql_query("SELECT id, symbol, status, entry_price, close_price, pnl, timestamp, close_time FROM operations WHERE status != 'OPEN' ORDER BY id ASC", conn)
+                recs = pd.read_sql_query("SELECT * FROM recommendations ORDER BY id DESC LIMIT 50", conn)
+                all_ops = pd.read_sql_query("SELECT * FROM operations ORDER BY id DESC", conn)
+            
+            recs_cols = ['id', 'timestamp', 'status', 'symbol', 'confidence', 'reason']
+            recs_show = recs[[c for c in recs_cols if c in recs.columns]] if not recs.empty else recs
             
             # Botones de exportación
             colA, colB = st.columns(2)
@@ -610,7 +613,7 @@ def main():
             st.divider()    
             st.subheader("Registro de Decisiones Estocásticas (Aprendizaje)")
             if not recs.empty:
-                st.dataframe(recs, use_container_width=True, hide_index=True)
+                st.dataframe(recs_show, use_container_width=True, hide_index=True)
                 
         except Exception as e:
             st.error(f"Error procesando historial: {e}")
@@ -733,10 +736,9 @@ def main():
                         stats_msg = "Memoria inyectada."
                         try:
                             import sqlite3, pandas as pd
-                            conn = sqlite3.connect('data/trading.db')
-                            ops_count = pd.read_sql_query("SELECT COUNT(*) FROM operations", conn).iloc[0,0]
-                            recs_count = pd.read_sql_query("SELECT COUNT(*) FROM recommendations", conn).iloc[0,0]
-                            conn.close()
+                            with sqlite3.connect('data/trading.db', timeout=20, check_same_thread=False) as conn:
+                                ops_count = pd.read_sql_query("SELECT COUNT(*) FROM operations", conn).iloc[0,0]
+                                recs_count = pd.read_sql_query("SELECT COUNT(*) FROM recommendations", conn).iloc[0,0]
                             stats_msg = f"Memoria inyectada con éxito. Registros recuperados: {ops_count} Operaciones, {recs_count} Recomendaciones."
                         except Exception:
                             pass
@@ -877,9 +879,8 @@ def main():
         
         st.subheader("📚 Tus Reflexiones Recientes")
         try:
-            conn = sqlite3.connect('data/trading.db')
-            reflections = pd.read_sql_query("SELECT id, related_id, type, reflection, timestamp FROM user_reflections ORDER BY id DESC LIMIT 15", conn)
-            conn.close()
+            with sqlite3.connect('data/trading.db', timeout=20, check_same_thread=False) as conn:
+                reflections = pd.read_sql_query("SELECT id, related_id, type, reflection, timestamp FROM user_reflections ORDER BY id DESC LIMIT 15", conn)
             if not reflections.empty:
                 st.dataframe(reflections, use_container_width=True, hide_index=True)
             else:
