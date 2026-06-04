@@ -12,7 +12,7 @@ try:
         save_reflection = lambda *args: None
         
     try:
-        from trade_utils import get_all_learning_metrics, get_all_reflections, get_all_recommendations, inject_memory_db
+        from trade_utils import get_all_learning_metrics, get_all_reflections, get_all_recommendations
     except ImportError:
         def get_all_learning_metrics(): import pandas as pd; return pd.DataFrame()
         def get_all_reflections(): import pandas as pd; return pd.DataFrame()
@@ -30,6 +30,41 @@ from datetime import datetime
 import time
 import warnings
 import sqlite3
+import os
+import shutil
+
+def inject_memory_db(uploaded_buffer):
+    DB_PATH = 'data/trading.db'
+    temp_path = DB_PATH + ".tmp"
+    backup_path = DB_PATH + ".bak"
+    try:
+        with open(temp_path, 'wb') as f:
+            f.write(uploaded_buffer)
+            
+        temp_conn = sqlite3.connect(temp_path)
+        cursor = temp_conn.cursor()
+        
+        required_tables = ['system_logs', 'indicators_log', 'recommendations', 'operations', 'learning_metrics', 'user_reflections']
+        for table in required_tables:
+            cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'")
+            if not cursor.fetchone():
+                temp_conn.close()
+                if os.path.exists(temp_path): os.remove(temp_path)
+                return False, f"La base de datos subida no es válida. Falta la tabla '{table}'."
+                
+        cursor.execute("SELECT COUNT(*) FROM system_logs")
+        cursor.fetchone()
+        temp_conn.close()
+        
+        if os.path.exists(DB_PATH):
+            shutil.copy2(DB_PATH, backup_path)
+            
+        os.replace(temp_path, DB_PATH)
+        return True, "Memoria inyectada y validada con éxito."
+    except Exception as e:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return False, f"Error validando o inyectando la base de datos: {str(e)}"
 
 # Omitir warnings numéricos de optimización en ST Cloud
 warnings.filterwarnings('ignore')
