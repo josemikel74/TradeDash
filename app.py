@@ -12,7 +12,7 @@ try:
         save_reflection = lambda *args: None
         
     try:
-        from trade_utils import get_all_learning_metrics, get_all_reflections, get_all_recommendations
+        from trade_utils import get_all_learning_metrics, get_all_reflections, get_all_recommendations, inject_memory_db
     except ImportError:
         def get_all_learning_metrics(): import pandas as pd; return pd.DataFrame()
         def get_all_reflections(): import pandas as pd; return pd.DataFrame()
@@ -686,15 +686,16 @@ def main():
             uploaded_file = st.file_uploader("Subir Backup de Memoria", type=['db', 'sqlite', 'sqlite3'])
             if uploaded_file is not None:
                 if st.button("⚠️ Confirmar Inyección de Memoria", use_container_width=True):
-                    try:
-                        with open('data/trading.db', 'wb') as f:
-                            f.write(uploaded_file.getbuffer())
-                        st.success("Memoria inyectada y calibrada con éxito. Reiniciando subsistemas...")
+                    file_buffer = uploaded_file.getbuffer()
+                    success, message = inject_memory_db(file_buffer)
+                    if success:
+                        st.success(f"{message} Reiniciando subsistemas...")
                         if 'refresh_counter' in st.session_state:
                             st.session_state.refresh_counter += 1
+                        time.sleep(1) # Give it a moment before rerun
                         st.rerun()
-                    except Exception as e:
-                        st.error(f"Error crítico al inyectar memoria: {e}")
+                    else:
+                        st.error(f"Error crítico al inyectar memoria: {message}")
 
     with tabs[7]:
         st.header("Panel de Configuración de Sistema")

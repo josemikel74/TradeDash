@@ -256,6 +256,44 @@ def save_reflection(related_id, rel_type, reflection):
     conn.commit()
     conn.close()
 
+def inject_memory_db(uploaded_buffer):
+    import shutil
+    temp_path = DB_PATH + ".tmp"
+    backup_path = DB_PATH + ".bak"
+    try:
+        with open(temp_path, 'wb') as f:
+            f.write(uploaded_buffer)
+            
+        # Validate the sqlite database
+        temp_conn = sqlite3.connect(temp_path)
+        cursor = temp_conn.cursor()
+        
+        required_tables = ['system_logs', 'indicators_log', 'recommendations', 'operations', 'learning_metrics', 'user_reflections']
+        for table in required_tables:
+            cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'")
+            if not cursor.fetchone():
+                temp_conn.close()
+                os.remove(temp_path)
+                return False, f"La base de datos subida no es válida. Falta la tabla '{table}'."
+                
+        # Attempt to read from one to ensure not corrupted
+        cursor.execute("SELECT COUNT(*) FROM system_logs")
+        cursor.fetchone()
+        temp_conn.close()
+        
+        # Backup existing
+        if os.path.exists(DB_PATH):
+            shutil.copy2(DB_PATH, backup_path)
+            
+        # Replace
+        os.replace(temp_path, DB_PATH)
+        return True, "Memoria inyectada y validada con éxito."
+    except Exception as e:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        logger.error(f"Error inyectando memoria: {e}")
+        return False, f"Error validando o inyectando la base de datos: {str(e)}"
+
 def fetch_data(symbol='BTC/USD', timeframe='1d', limit=250, retries=3):
     """
     Obtiene datos OHLCV de Kraken manejando errores y reintentos.
