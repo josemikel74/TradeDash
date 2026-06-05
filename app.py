@@ -806,23 +806,35 @@ def main():
                 current_prob = 50.0
                 st.warning("⚠️ Mercado no sincronizado en este ciclo. Visualizando estado base de la operación.")
                 
-            c1, c2, c3 = st.columns(3)
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.9) 100%); padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px;">
+                <h3 style="margin-top:0; color: #818cf8; font-weight: 600;">Posición Activa en Detección Radar</h3>
+            </div>
+            """, unsafe_allow_html=True)
+                
+            st.subheader(f"📊 Desempeño Flotante - {active_op.get('symbol', 'Activo')}")
+            
+            c1, c2, c3, c4 = st.columns(4)
             c1.metric("Precio de Entrada", f"${active_op['entry_price']:,.2f}")
             c2.metric("Precio Referencia", f"${current_price:,.2f}", f"{(current_price - active_op['entry_price']) / active_op['entry_price'] * 100:.2f}%")
             
-            # Avoid ZeroDivisionError if current_price is 0
             tp_pct = ((active_op['take_profit'] - current_price) / current_price * 100) if current_price > 0 else 0
             c3.metric("Take Profit Estático", f"${active_op['take_profit']:,.2f}", f"{tp_pct:.2f}% a la meta", delta_color="off")
+            
+            pnl_actual = (current_price - active_op['entry_price']) / active_op['entry_price'] * 100
+            c4.metric("PnL Flotante Aprox.", f"{pnl_actual:.2f}%")
             
             st.markdown("---")
             col_a, col_b = st.columns(2)
             with col_a:
-                st.warning(f"**Ubicación de Stop Loss Crítico:** ${active_op['current_stop_loss']:,.2f}")
+                st.markdown("### 🛡️ Nivel de Riesgo (Stop Loss)")
+                sl_style = "color:#ff4b4b; font-weight:bold;"
+                st.markdown(f"**Ubicación de Stop Loss Crítico:** <span style='{sl_style}'>${active_op['current_stop_loss']:,.2f}</span>", unsafe_allow_html=True)
                 dist_sl_pct = ((current_price - active_op['current_stop_loss']) / current_price * 100) if current_price > 0 else 0
-                st.markdown(f"*Distancia hasta el SL: **{dist_sl_pct:.2f}%***")
+                st.markdown(f"*Distancia actual hasta el SL: **{dist_sl_pct:.2f}%***")
                 
-                new_sl = st.number_input("Actualizar Stop Loss (Trailing SL)", value=float(active_op['current_stop_loss']), step=100.0)
-                if st.button("Actualizar SL en BBDD"):
+                new_sl = st.number_input("Ajustar Trailing Stop Loss", value=float(active_op['current_stop_loss']), step=10.0, key=f"sl_input_{active_op['id']}")
+                if st.button("Actualizar SL en BBDD", key="update_sl_btn"):
                     update_stop_loss(active_op['id'], new_sl)
                     st.success("Stop Loss actualizado.")
                     st.rerun()
@@ -833,20 +845,21 @@ def main():
                         st.error("🚨 CRÍTICO: El precio cruzó el nivel de Stop Loss. Operación liquidada preventivamente.")
                         close_operation(active_op['id'], current_price, 'STOP_LOSS_HIT')
                         st.session_state.refresh_counter += 1
+                        st.rerun()
                     elif current_price >= active_op['take_profit']:
                         st.success("🎯 OBJETIVO ALCANZADO: El precio tocó el Take Profit. Operación finalizada exitosamente.")
                         close_operation(active_op['id'], current_price, 'TAKE_PROFIT_HIT')
                         st.session_state.refresh_counter += 1
+                        st.rerun()
 
             with col_b:
+                st.markdown("### 🧠 Vector Analítico")
                 st.info(f"**Probabilidad Estimada de Éxito Actualizada:** {current_prob:.1f}%")
-                pnl_actual = (current_price - active_op['entry_price']) / active_op['entry_price'] * 100
-                st.metric("PnL Flotante Aprox.", f"{pnl_actual:.2f}%")
                 
                 with st.form("close_operation_form"):
                     st.markdown("### 🏛️ Reflexión Final (Génesis)")
                     st.markdown("Cerrar prematuramente altera la esperanza matemática. ¿Por qué cierras hoy?")
-                    reflection_close = st.text_area("Motivo del cierre:", placeholder="Siento miedo irracional, o veo una debilidad estructural...", key="reflection_close")
+                    reflection_close = st.text_area("Motivo del cierre:", placeholder="Siento miedo irracional, o veo una debilidad estructural...", key="reflection_close_area")
                     
                     if st.form_submit_button("Cerrar Operación Manualmente AHORA", type="primary", use_container_width=True):
                         close_operation(active_op['id'], current_price, 'MANUAL_CLOSE')

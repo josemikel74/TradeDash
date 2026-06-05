@@ -22,7 +22,7 @@ DB_PATH = 'data/trading.db'
 def init_db():
     conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
         cursor = conn.cursor()
         # Tabla para logs del sistema
         cursor.execute('''
@@ -113,7 +113,7 @@ def log_to_db(level, message, log_to_file=True):
         
     conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
         cursor = conn.cursor()
         cursor.execute('INSERT INTO system_logs (timestamp, level, message) VALUES (?, ?, ?)',
                        (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), level, message))
@@ -128,7 +128,7 @@ def save_indicators(symbol, timeframe, row):
     """Guarda valores de indicadores clave en la DB local."""
     conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
         cursor = conn.cursor()
         
         # Limpieza simple para BD
@@ -152,7 +152,7 @@ def save_indicators(symbol, timeframe, row):
             conn.close()
 
 def save_recommendation(symbol, entry, sl, tp, size, confidence, reason):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO recommendations (timestamp, symbol, entry_price, stop_loss, take_profit, position_size, confidence, reason, status)
@@ -164,14 +164,14 @@ def save_recommendation(symbol, entry, sl, tp, size, confidence, reason):
     return rec_id
 
 def update_recommendation_status(rec_id, status):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('UPDATE recommendations SET status = ? WHERE id = ?', (status, rec_id))
     conn.commit()
     conn.close()
 
 def open_operation(rec_id, symbol, entry, sl, tp, size):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO operations (rec_id, timestamp, symbol, entry_price, current_stop_loss, take_profit, position_size, status)
@@ -181,7 +181,7 @@ def open_operation(rec_id, symbol, entry, sl, tp, size):
     conn.close()
 
 def get_active_operation():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
     df = pd.read_sql_query("SELECT * FROM operations WHERE status = 'OPEN' ORDER BY id DESC LIMIT 1", conn)
     conn.close()
     if not df.empty:
@@ -189,7 +189,7 @@ def get_active_operation():
     return None
 
 def close_operation(op_id, close_price, reason):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('SELECT entry_price, position_size FROM operations WHERE id = ?', (op_id,))
     row = cursor.fetchone()
@@ -204,14 +204,14 @@ def close_operation(op_id, close_price, reason):
     conn.close()
 
 def update_stop_loss(op_id, new_sl):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('UPDATE operations SET current_stop_loss = ? WHERE id = ?', (new_sl, op_id))
     conn.commit()
     conn.close()
 
 def save_learning_metrics(brier, calibration, lookback, vol_thresh):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO learning_metrics (timestamp, brier_score, calibration_error, optimal_lookback, optimal_vol_threshold)
@@ -221,7 +221,7 @@ def save_learning_metrics(brier, calibration, lookback, vol_thresh):
     conn.close()
 
 def get_latest_learning_metrics():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
     df = pd.read_sql_query("SELECT * FROM learning_metrics ORDER BY id DESC LIMIT 1", conn)
     conn.close()
     if not df.empty:
@@ -229,25 +229,25 @@ def get_latest_learning_metrics():
     return None
 
 def get_all_learning_metrics():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
     df = pd.read_sql_query("SELECT * FROM learning_metrics ORDER BY id ASC", conn)
     conn.close()
     return df
 
 def get_all_reflections():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
     df = pd.read_sql_query("SELECT * FROM user_reflections ORDER BY id DESC", conn)
     conn.close()
     return df
 
 def get_all_recommendations():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
     df = pd.read_sql_query("SELECT * FROM recommendations ORDER BY id DESC", conn)
     conn.close()
     return df
 
 def save_reflection(related_id, rel_type, reflection):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20, check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO user_reflections (related_id, type, reflection, timestamp)
@@ -265,7 +265,7 @@ def inject_memory_db(uploaded_buffer):
             f.write(uploaded_buffer)
             
         # Validate the sqlite database
-        temp_conn = sqlite3.connect(temp_path)
+        temp_conn = sqlite3.connect(temp_path, timeout=20, check_same_thread=False)
         cursor = temp_conn.cursor()
         
         required_tables = ['system_logs', 'indicators_log', 'recommendations', 'operations', 'learning_metrics', 'user_reflections']
