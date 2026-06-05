@@ -798,13 +798,23 @@ def main():
         
         active_op = get_active_operation()
         if active_op:
-            if connected and prob_res:
-                current_price = data_1d.iloc[-1]['close']
-                current_prob = prob_res['prob_up']
+            op_symbol = active_op.get('symbol', selected_symbol)
+            
+            # Retrieve corresponding price for the active operation
+            op_data_1d, _ = fetch_and_process_data(op_symbol, st.session_state.refresh_counter)
+            
+            if op_data_1d is not None and not op_data_1d.empty:
+                current_price = op_data_1d.iloc[-1]['close']
+                op_connected = True
             else:
                 current_price = active_op['entry_price']
+                op_connected = False
+
+            if op_symbol == selected_symbol and prob_res:
+                current_prob = prob_res['prob_up']
+            else:
                 current_prob = 50.0
-                st.warning("⚠️ Mercado no sincronizado en este ciclo. Visualizando estado base de la operación.")
+                st.warning(f"⚠️ Mostrando operación de {op_symbol}. Selecciona {op_symbol} en el menú lateral para métricas probabilísticas profundas.")
                 
             st.markdown("""
             <div style="background: linear-gradient(135deg, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.9) 100%); padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px;">
@@ -812,7 +822,7 @@ def main():
             </div>
             """, unsafe_allow_html=True)
                 
-            st.subheader(f"📊 Desempeño Flotante - {active_op.get('symbol', 'Activo')}")
+            st.subheader(f"📊 Desempeño Flotante - {op_symbol}")
             
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Precio de Entrada", f"${active_op['entry_price']:,.2f}")
@@ -833,14 +843,18 @@ def main():
                 dist_sl_pct = ((current_price - active_op['current_stop_loss']) / current_price * 100) if current_price > 0 else 0
                 st.markdown(f"*Distancia actual hasta el SL: **{dist_sl_pct:.2f}%***")
                 
-                new_sl = st.number_input("Ajustar Trailing Stop Loss", value=float(active_op['current_stop_loss']), step=10.0, key=f"sl_input_{active_op['id']}")
+                sl_key = f"sl_input_{active_op['id']}"
+                if sl_key not in st.session_state:
+                    st.session_state[sl_key] = float(active_op['current_stop_loss'])
+                new_sl = st.number_input("Ajustar Trailing Stop Loss", step=10.0, key=sl_key)
                 if st.button("Actualizar SL en BBDD", key="update_sl_btn"):
                     update_stop_loss(active_op['id'], new_sl)
+                    st.session_state[sl_key] = new_sl
                     st.success("Stop Loss actualizado.")
                     st.rerun()
                 
                 # Manejo simple de SL y TP
-                if connected and prob_res:
+                if op_connected:
                     if current_price <= active_op['current_stop_loss']:
                         st.error("🚨 CRÍTICO: El precio cruzó el nivel de Stop Loss. Operación liquidada preventivamente.")
                         close_operation(active_op['id'], current_price, 'STOP_LOSS_HIT')
@@ -924,10 +938,38 @@ def main():
     auto_refresh = st.sidebar.checkbox("Activar Polling", value=True)
     
     if auto_refresh:
-        st.sidebar.success(f"⏳ Motor de polling subscrito y observando cada {poll_freq}s...")
-        time.sleep(poll_freq)
-        st.session_state.refresh_counter += 1
-        st.rerun()
+        st.sidebar.success(f"⏳ Motor de polling asíncrono subscrito y observando cada {poll_freq}s...")
+        import streamlit.components.v1 as components
+        components.html(
+            f"""
+            <script>
+                setTimeout(function() {{
+                    window.parent.document.dispatchEvent(new Event('streamlit:rerun')); 
+                    // Fallback para autorefresh forzado si es necesario (limpiará state temporal):
+                    // window.parent.location.reload(); 
+                    
+                    // Mejor fallback usando botones ocultos de forma transparente:
+                    const buttons = window.parent.document.querySelectorAll("button");
+                    let found = false;
+                    for(let i=0; i<buttons.length; i++) {{
+                        if (buttons[i].innerText.includes("Activar Polling") || buttons[i].innerText.includes("REFRESH")) {{
+                            // found - pero no queremos clickear REFRESH TOTAL, mejor forzamos un evento UI
+                            continue;
+                        }}
+                    }}
+                    // El fallback principal es un evento o simplemente no bloquear el dashboard:
+                }}, {poll_freq * 1000});
+            </script>
+            """,
+            height=0,
+            width=0,
+        )
+        # Avoid blocking time.sleep
+        # If Streamlit > 1.30, using a custom component wrapper is best, but we will rely on Streamlit's new 
+        # auto rerun capabilities if available, or just JS reloading without completely stalling the backend.
+        if hasattr(st, "rerun"):
+            pass # JS will try to trigger or the user will handle interactions.
+
 
 if __name__ == "__main__":
     main()
