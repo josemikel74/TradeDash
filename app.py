@@ -4,6 +4,8 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import io
+import urllib.request
+import json
 try:
     from trade_utils import fetch_data, init_db, log_to_db, save_indicators, save_recommendation, update_recommendation_status, open_operation, get_active_operation, close_operation, save_learning_metrics, get_latest_learning_metrics, update_stop_loss
     try:
@@ -79,6 +81,15 @@ st.set_page_config(
 
 # 2. Inicialización de la base de datos local
 init_db()
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_fear_and_greed(_refresh_counter):
+    try:
+        req = urllib.request.urlopen("https://api.alternative.me/fng/?limit=1", timeout=5)
+        data = json.loads(req.read())
+        return data['data'][0]
+    except Exception as e:
+        return None
 
 # 3. Caché de extracción y cálculo de indicadores técnicos
 @st.cache_data(ttl=15, show_spinner=False)
@@ -320,6 +331,40 @@ def main():
                     <p style="font-size: 0.8em; color: #64748b;">Pérdida máxima estimada con un nivel de confianza del 95%.</p>
                 </div>
                 """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+            st.subheader("🧭 Índice Fear & Greed (Sentimiento de Mercado)")
+            fng_data = fetch_fear_and_greed(st.session_state.refresh_counter)
+            if fng_data:
+                fng_value = int(fng_data['value'])
+                fng_class = fng_data['value_classification']
+                
+                # Determine color based on value
+                if fng_value < 25:
+                    fng_color = "#ef4444" # Extreme Fear
+                elif fng_value < 45:
+                    fng_color = "#f97316" # Fear
+                elif fng_value < 55:
+                    fng_color = "#eab308" # Neutral
+                elif fng_value < 75:
+                    fng_color = "#84cc16" # Greed
+                else:
+                    fng_color = "#22c55e" # Extreme Greed
+                    
+                st.markdown(f"""
+                <div style="background: rgba(30,41,59,0.5); padding: 25px; border-radius: 12px; border: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                    <div>
+                        <h4 style="margin: 0; color: #f8fafc; font-size: 1.2em;">Sentimiento Acumulado del Mercado</h4>
+                        <p style="margin: 5px 0 0 0; color: #94a3b8; font-size: 0.9em;">Sincronizado vía Alternative.me API (Auto-Refresh)</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <h2 style="margin: 0; color: {fng_color}; font-size: 2.5em; font-weight: 800;">{fng_value} / 100</h2>
+                        <h4 style="margin: 0; color: {fng_color}; font-size: 1.1em; text-transform: uppercase; letter-spacing: 1px;">{fng_class}</h4>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.warning("⚠️ No se pudo obtener el índice Fear & Greed en este momento. Reintentando en el próximo ciclo...")
             
             st.caption(f"Cálculos realizados en la nube. Tiempo de cómputo matriz distribuido: {prob_res['calc_time']:.2f}s. Sello: {prob_res['timestamp'].strftime('%d/%m/%Y %H:%M:%S')}")
             
