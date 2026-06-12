@@ -337,32 +337,57 @@ def main():
             fng_data = fetch_fear_and_greed(st.session_state.refresh_counter)
             if fng_data:
                 fng_value = int(fng_data['value'])
-                fng_class = fng_data['value_classification']
+                fng_class = fng_data['value_classification'].upper()
                 
                 # Determine color based on value
                 if fng_value < 25:
-                    fng_color = "#ef4444" # Extreme Fear
+                    fng_color = "#ea3943" # Extreme Fear
                 elif fng_value < 45:
-                    fng_color = "#f97316" # Fear
+                    fng_color = "#ea8c00" # Fear
                 elif fng_value < 55:
                     fng_color = "#eab308" # Neutral
                 elif fng_value < 75:
                     fng_color = "#84cc16" # Greed
                 else:
-                    fng_color = "#22c55e" # Extreme Greed
+                    fng_color = "#16c784" # Extreme Greed
                     
+                fig_fng = go.Figure(go.Indicator(
+                    mode="gauge+number",
+                    value=fng_value,
+                    domain={'x': [0, 1], 'y': [0, 1]},
+                    number={'font': {'size': 58, 'color': "white"}, 'suffix': ""},
+                    title={'text': f"<br><span style='font-size: 28px; font-weight: bold; color: {fng_color};'>{fng_class}</span>", 'font': {'size': 24}},
+                    gauge={
+                        'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "white", 'tickvals': [0, 25, 45, 55, 75, 100]},
+                        'bar': {'color': "rgba(255,255,255,0.9)", 'thickness': 0.05},
+                        'bgcolor': "rgba(0,0,0,0)",
+                        'borderwidth': 0,
+                        'steps': [
+                            {'range': [0, 24.9], 'color': "#ea3943"},
+                            {'range': [25, 44.9], 'color': "#ea8c00"},
+                            {'range': [45, 54.9], 'color': "#eab308"},
+                            {'range': [55, 74.9], 'color': "#84cc16"},
+                            {'range': [75, 100], 'color': "#16c784"}
+                        ],
+                    }
+                ))
+                
+                fig_fng.update_layout(
+                    height=350,
+                    margin=dict(l=20, r=20, t=50, b=10),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font={'color': "white"}
+                )
+
                 st.markdown(f"""
-                <div style="background: rgba(30,41,59,0.5); padding: 25px; border-radius: 12px; border: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-                    <div>
-                        <h4 style="margin: 0; color: #f8fafc; font-size: 1.2em;">Sentimiento Acumulado del Mercado</h4>
-                        <p style="margin: 5px 0 0 0; color: #94a3b8; font-size: 0.9em;">Sincronizado vía Alternative.me API (Auto-Refresh)</p>
-                    </div>
-                    <div style="text-align: right;">
-                        <h2 style="margin: 0; color: {fng_color}; font-size: 2.5em; font-weight: 800;">{fng_value} / 100</h2>
-                        <h4 style="margin: 0; color: {fng_color}; font-size: 1.1em; text-transform: uppercase; letter-spacing: 1px;">{fng_class}</h4>
-                    </div>
+                <div style="background: rgba(30,41,59,0.5); padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px;">
+                    <h4 style="margin: 0; color: #f8fafc; font-size: 1.25em; text-align: center;">Índice Fear & Greed de Criptomonedas</h4>
+                    <p style="margin: 5px 0 0 0; color: #94a3b8; font-size: 0.9em; text-align: center;">Replicación y Sincronización en Tiempo Real (CoinMarketCap Visual Style)</p>
                 </div>
                 """, unsafe_allow_html=True)
+                
+                st.plotly_chart(fig_fng, use_container_width=True, config={'displayModeBar': False})
+
             else:
                 st.warning("⚠️ No se pudo obtener el índice Fear & Greed en este momento. Reintentando en el próximo ciclo...")
             
