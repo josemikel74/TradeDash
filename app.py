@@ -749,18 +749,50 @@ def main():
                 st.info("Sin simulaciones concluidas para visualizar convergencia.")
                 
         st.markdown("### 🔎 Registro Forense de Decisiones (Deep-Log)")
+        
+        # Add injection form
+        with st.expander("➕ Inyección Manual de Memoria (Deep-Log)"):
+            st.markdown("Inyecta resoluciones o contexto en el banco de memoria forense. Esto será considerado en el proceso de auto-aprendizaje.")
+            with st.form("inject_memory_form"):
+                col_i1, col_i2 = st.columns(2)
+                inj_type = col_i1.selectbox("Naturaleza de Entidad (Tipo)", ["SYSTEM_OVERRIDE", "STRATEGY_ADJUSTMENT", "RISK_NOTE", "MARKET_OBSERVATION", "MANUAL_BYPASS"])
+                inj_rel_id = col_i2.number_input("ID Relacionado (Opcional, 0 = N/A)", value=0, step=1)
+                inj_reflection = st.text_area("Resolución Metodológica / Contexto a inyectar", placeholder="E.g., Se observó volatilidad macroeconómica inusual. Se ajusta la tolerancia...")
+                
+                if st.form_submit_button("Inyectar en Banco de Memoria"):
+                    if inj_reflection.strip():
+                        save_reflection(inj_rel_id, inj_type, inj_reflection)
+                        st.success("✅ Datos inyectados exitosamente en la memoria forense.")
+                        st.rerun()
+                    else:
+                        st.error("❌ La resolución no puede estar vacía.")
+
         if not reflections.empty:
-            styled_reflections = reflections[['timestamp', 'type', 'reflection']].copy()
+            # Reorder columns to show more details
+            styled_reflections = reflections[['id', 'timestamp', 'type', 'related_id', 'reflection']].copy()
             styled_reflections.sort_values(by='timestamp', ascending=False, inplace=True)
+            
             st.dataframe(
                 styled_reflections, 
                 use_container_width=True, 
                 hide_index=True,
                 column_config={
-                    "timestamp": st.column_config.TextColumn("Marca de Tiempo"),
-                    "type": st.column_config.TextColumn("Naturaleza de Entidad"),
-                    "reflection": st.column_config.TextColumn("Resolución Metodológica"),
+                    "id": st.column_config.NumberColumn("ID Interno", width="small"),
+                    "timestamp": st.column_config.TextColumn("Marca de Tiempo", width="medium"),
+                    "type": st.column_config.TextColumn("Naturaleza", width="medium"),
+                    "related_id": st.column_config.NumberColumn("ID Vínculo", width="small"),
+                    "reflection": st.column_config.TextColumn("Resolución Metodológica (Contexto)", width="large"),
                 }
+            )
+            
+            # Allow downloading just the Deep-Log as CSV
+            csv = styled_reflections.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Descargar Deep-Log (CSV)",
+                data=csv,
+                file_name="deep_log_forense.csv",
+                mime="text/csv",
+                use_container_width=True
             )
         else:
             st.warning("El motor forense aún no ha capturado dictámenes cognitivos.")
